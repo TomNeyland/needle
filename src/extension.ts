@@ -2,6 +2,7 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
+import * as crypto from 'crypto';
 import { SearchSidebarViewProvider } from './SearchSidebarViewProvider';
 
 interface EmbeddedChunk {
@@ -10,6 +11,8 @@ interface EmbeddedChunk {
   filePath: string;
   lineStart: number;
   lineEnd: number;
+  fingerprint: string;
+  context?: string;
 }
 
 interface OpenAIEmbeddingResponse {
@@ -21,7 +24,68 @@ interface OpenAIEmbeddingResponse {
 const EMBEDDING_FILE = 'searchpp.embeddings.json';
 const PARALLEL_EMBED_LIMIT = 25; // Configurable rate limit
 
+
+function generateFingerprint(code: string): string {
+  return crypto.createHash('sha256').update(code).digest('hex');
+}
+
+function getSymbolContextWithParents(
+  symbol: vscode.DocumentSymbol,
+  parents: vscode.DocumentSymbol[],
+  doc: vscode.TextDocument
+): string {
+  const names = parents.map(s => s.name);
+  names.push(symbol.name);
+
+  // Include docstring or preceding comments (up to 5 lines above)
+  const docRangeStart = Math.max(symbol.range.start.line - 5, 0);
+  const contextLines = doc.getText(
+    new vscode.Range(docRangeStart, 0, symbol.range.start.line, 0)
+  ).trim();
+
+  return (contextLines ? contextLines + '\n' : '') + names.join(' > ');
+}
+
+// Declare this variable at a higher scope so we can access the provider
+let searchSidebarProvider: SearchSidebarViewProvider;
+let statusBarItem: vscode.StatusBarItem;
+
 export function activate(context: vscode.ExtensionContext) {
+  // Create and register the sidebar provider
+  searchSidebarProvider = new SearchSidebarViewProvider(context);
+  context.subscriptions.push(
+    vscode.window.registerWebviewViewProvider(
+      'searchpp.sidebar',
+      searchSidebarProvider
+    )
+  );
+
+  // Create status bar item
+  statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
+  statusBarItem.text = "$(search) Search++";
+  statusBarItem.tooltip = "Click to open Search++";
+  statusBarItem.command = "searchpp.smartFind";
+  statusBarItem.show();
+  context.subscriptions.push(statusBarItem);
+
+  // Register the command to set the API key
+  const setApiKeyCommand = vscode.commands.registerCommand('searchpp.setApiKey', async () => {
+    const apiKey = await vscode.window.showInputBox({
+      prompt: 'Enter your OpenAI API Key',
+      password: true,
+      ignoreFocusOut: true,
+      placeHolder: 'sk-...'
+    });
+    
+    if (apiKey) {
+      await context.globalState.update('searchpp.openaiApiKey', apiKey);
+      vscode.window.showInformationMessage('Search++: API Key saved successfully');
+    }
+  });
+
+  context.subscriptions.push(setApiKeyCommand);
+
+  // Register the smart find command
   const disposable = vscode.commands.registerCommand('searchpp.smartFind', async (query?: string) => {
     if (!query) {
       query = await vscode.window.showInputBox({
@@ -35,16 +99,33 @@ export function activate(context: vscode.ExtensionContext) {
       return;
     }
 
+    // Focus the sidebar view if it exists
+    vscode.commands.executeCommand('searchpp.sidebar.focus');
+    
+    // Perform the search
+    const results = await vscode.commands.executeCommand('searchpp.performSearch', query);
+    
+    // The results will be displayed in the sidebar by the performSearch command
+  });
+
+  context.subscriptions.push(disposable);
+
+  // Add a new command for performing a search that returns results to the sidebar
+  const performSearchCommand = vscode.commands.registerCommand('searchpp.performSearch', async (query?: string) => {
+    if (!query) {
+      return [];
+    }
+
     const apiKey = await getOpenAIKey(context);
     if (!apiKey) {
       vscode.window.showErrorMessage('Search++: OpenAI API Key is required.');
-      return;
+      return [];
     }
 
     const workspaceFolders = vscode.workspace.workspaceFolders;
     if (!workspaceFolders) {
       vscode.window.showErrorMessage('Search++: No workspace folder open.');
-      return;
+      return [];
     }
     const workspacePath = workspaceFolders[0].uri.fsPath;
     const embeddingPath = path.join(workspacePath, EMBEDDING_FILE);
@@ -65,7 +146,7 @@ export function activate(context: vscode.ExtensionContext) {
     const queryEmbedding = await getEmbedding(query, apiKey);
     if (!queryEmbedding) {
       vscode.window.showErrorMessage('Search++: Failed to embed query.');
-      return;
+      return [];
     }
 
     console.log('[Search++] Scoring matches...');
@@ -74,41 +155,13 @@ export function activate(context: vscode.ExtensionContext) {
         ...chunk,
         score: cosineSimilarity(queryEmbedding, chunk.embedding)
       };
-    }).sort((a, b) => b.score - a.score).slice(0, 5);
+    }).sort((a, b) => b.score - a.score).slice(0, 10); // Increased to 10 results
 
-    console.log('[Search++] Top 5 matches:', results);
-
-    const resultItems = results.map(r => ({
-      label: `${path.basename(r.filePath)}:${r.lineStart + 1} (${r.score.toFixed(2)})`,
-      description: r.code.split('\n').slice(0, 3).join(' ').trim(),
-      detail: r.filePath,
-      chunk: r
-    }));
-
-    const picked = await vscode.window.showQuickPick(resultItems, {
-      title: 'Search++ Top Matches',
-      matchOnDescription: true,
-      matchOnDetail: true
-    });
-
-    if (picked && picked.chunk) {
-      const uri = vscode.Uri.file(picked.chunk.filePath);
-      const doc = await vscode.workspace.openTextDocument(uri);
-      const editor = await vscode.window.showTextDocument(doc);
-      const range = new vscode.Range(picked.chunk.lineStart, 0, picked.chunk.lineEnd + 1, 0);
-      editor.revealRange(range, vscode.TextEditorRevealType.InCenter);
-      editor.selection = new vscode.Selection(range.start, range.end);
-    }
+    console.log('[Search++] Top matches:', results);
+    return results;
   });
 
-  context.subscriptions.push(disposable);
-
-  context.subscriptions.push(
-    vscode.window.registerWebviewViewProvider(
-      'searchpp.sidebar',
-      new SearchSidebarViewProvider(context)
-    )
-  );
+  context.subscriptions.push(performSearchCommand);
 
   vscode.workspace.onDidSaveTextDocument(async (doc) => {
     console.log(`[Search++] File saved: ${doc.uri.fsPath}`);
@@ -140,19 +193,50 @@ export function activate(context: vscode.ExtensionContext) {
     console.log(`[Search++] Re-embedding ${flattened.length} symbols from ${doc.uri.fsPath}`);
 
     const embedInBatches = async (symbols: vscode.DocumentSymbol[]) => {
-      for (let i = 0; i < symbols.length; i += PARALLEL_EMBED_LIMIT) {
-        const batch = symbols.slice(i, i + PARALLEL_EMBED_LIMIT);
-        await Promise.all(batch.map(async symbol => {
+      type FlattenedSymbol = {
+        symbol: vscode.DocumentSymbol;
+        parents: vscode.DocumentSymbol[];
+      };
+    
+      const flatten = (symbols: vscode.DocumentSymbol[], parents: vscode.DocumentSymbol[] = []): FlattenedSymbol[] => {
+        return symbols.flatMap(sym => [
+          { symbol: sym, parents },
+          ...flatten(sym.children, [...parents, sym])
+        ]);
+      };
+    
+      const flattened = flatten(symbols);
+    
+      for (let i = 0; i < flattened.length; i += PARALLEL_EMBED_LIMIT) {
+        const batch = flattened.slice(i, i + PARALLEL_EMBED_LIMIT);
+        await Promise.all(batch.map(async ({ symbol, parents }) => {
           const code = doc.getText(symbol.range);
-          console.log(`[Search++] Embedding symbol '${symbol.name}' of kind ${vscode.SymbolKind[symbol.kind]} from ${doc.uri.fsPath} lines ${symbol.range.start.line}-${symbol.range.end.line}`);
+          const fingerprint = generateFingerprint(code);
+          const existing = embeddedChunks.find(
+            c => c.filePath === doc.uri.fsPath &&
+                 c.lineStart === symbol.range.start.line &&
+                 c.fingerprint === fingerprint
+          );
+    
+          if (existing) {
+            console.log(`[Search++] Skipping unchanged symbol '${symbol.name}'`);
+            updatedChunks.push(existing);
+            return;
+          }
+    
+          const context = getSymbolContextWithParents(symbol, parents, doc);
+          console.log(`[Search++] Embedding symbol '${symbol.name}' from ${doc.uri.fsPath}`);
           const embedding = await getEmbedding(code, apiKey);
+    
           if (embedding) {
             updatedChunks.push({
               embedding,
               code,
               filePath: doc.uri.fsPath,
               lineStart: symbol.range.start.line,
-              lineEnd: symbol.range.end.line
+              lineEnd: symbol.range.end.line,
+              fingerprint,
+              context
             });
           }
         }));
@@ -169,10 +253,34 @@ export function activate(context: vscode.ExtensionContext) {
   });
 }
 
-export function deactivate() {}
+export function deactivate() {
+  if (statusBarItem) {
+    statusBarItem.dispose();
+  }
+}
 
 async function getOpenAIKey(context: vscode.ExtensionContext): Promise<string | undefined> {
-  return process.env.OPENAI_API_KEY || context.globalState.get<string>('searchpp.openaiApiKey');
+  // First check the context's global state
+  const apiKey = context.globalState.get<string>('searchpp.openaiApiKey');
+  
+  // Then check environment variable as fallback
+  const envApiKey = process.env.OPENAI_API_KEY;
+  
+  if (!apiKey && !envApiKey) {
+    const response = await vscode.window.showInformationMessage(
+      'Search++: OpenAI API Key is required for semantic search.',
+      'Set API Key',
+      'Cancel'
+    );
+    
+    if (response === 'Set API Key') {
+      return vscode.commands.executeCommand('searchpp.setApiKey');
+    }
+    
+    return undefined;
+  }
+  
+  return apiKey || envApiKey;
 }
 
 async function getEmbedding(text: string, apiKey: string): Promise<number[] | null> {
@@ -206,44 +314,62 @@ function cosineSimilarity(a: number[], b: number[]): number {
   return dot / (normA * normB);
 }
 
+
 async function indexWorkspace(apiKey: string): Promise<EmbeddedChunk[]> {
   console.log('[Search++] Indexing full workspace...');
-  const symbols = await vscode.commands.executeCommand<vscode.SymbolInformation[]>(
-    'vscode.executeWorkspaceSymbolProvider', ''
-  );
+  const workspaceFolders = vscode.workspace.workspaceFolders;
+  if (!workspaceFolders) return [];
 
-  if (!symbols || symbols.length === 0) {
-    vscode.window.showWarningMessage('Search++: No symbols found in workspace.');
-    return [];
-  }
-
-  const codeChunks: { code: string; filePath: string; lineStart: number; lineEnd: number }[] = [];
-
-  for (const symbol of symbols) {
-    try {
-      const doc = await vscode.workspace.openTextDocument(symbol.location.uri);
-      const code = doc.getText(symbol.location.range);
-      codeChunks.push({
-        code,
-        filePath: symbol.location.uri.fsPath,
-        lineStart: symbol.location.range.start.line,
-        lineEnd: symbol.location.range.end.line,
-      });
-    } catch (err) {
-      console.warn(`[Search++] Failed to load symbol from ${symbol.location.uri.fsPath}`, err);
-    }
-  }
-
+  const files = await vscode.workspace.findFiles('**/*.{ts,js,tsx,jsx,py,java,go,rs}', '**/node_modules/**');
   const embeddedChunks: EmbeddedChunk[] = [];
-  for (let i = 0; i < codeChunks.length; i += PARALLEL_EMBED_LIMIT) {
-    const batch = codeChunks.slice(i, i + PARALLEL_EMBED_LIMIT);
-    await Promise.all(batch.map(async chunk => {
-      console.log(`[Search++] Embedding chunk from ${chunk.filePath} lines ${chunk.lineStart}-${chunk.lineEnd}`);
-      const embedding = await getEmbedding(chunk.code, apiKey);
-      if (embedding) {
-        embeddedChunks.push({ ...chunk, embedding });
+
+  for (const file of files) {
+    try {
+      const doc = await vscode.workspace.openTextDocument(file);
+      const symbols = await vscode.commands.executeCommand<vscode.DocumentSymbol[]>(
+        'vscode.executeDocumentSymbolProvider', file
+      );
+
+      if (!symbols) continue;
+
+      type FlattenedSymbol = {
+        symbol: vscode.DocumentSymbol;
+        parents: vscode.DocumentSymbol[];
+      };
+
+      const flatten = (symbols: vscode.DocumentSymbol[], parents: vscode.DocumentSymbol[] = []): FlattenedSymbol[] => {
+        return symbols.flatMap(sym => [
+          { symbol: sym, parents },
+          ...flatten(sym.children, [...parents, sym])
+        ]);
+      };
+
+      const flattened = flatten(symbols);
+
+      for (let i = 0; i < flattened.length; i += PARALLEL_EMBED_LIMIT) {
+        const batch = flattened.slice(i, i + PARALLEL_EMBED_LIMIT);
+        await Promise.all(batch.map(async ({ symbol, parents }) => {
+          const code = doc.getText(symbol.range);
+          const context = getSymbolContextWithParents(symbol, parents, doc);
+          const fingerprint = generateFingerprint(code);
+
+          const embedding = await getEmbedding(code, apiKey);
+          if (embedding) {
+            embeddedChunks.push({
+              embedding,
+              code,
+              filePath: file.fsPath,
+              lineStart: symbol.range.start.line,
+              lineEnd: symbol.range.end.line,
+              fingerprint,
+              context
+            });
+          }
+        }));
       }
-    }));
+    } catch (err) {
+      console.warn(`[Search++] Failed to index ${file.fsPath}`, err);
+    }
   }
 
   return embeddedChunks;
