@@ -341,7 +341,7 @@ async function getEmbedding(text: string, apiKey: string): Promise<number[] | nu
     console.log('[Search++] Received embedding response');
     return data?.data?.[0]?.embedding || null;
   } catch (err) {
-    console.error('Embedding error:', err);
+    console.error('Embedding error!:', err);
     return null;
   }
 }
