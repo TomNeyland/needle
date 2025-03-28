@@ -34,16 +34,36 @@ function getSymbolContextWithParents(
   parents: vscode.DocumentSymbol[],
   doc: vscode.TextDocument
 ): string {
-  const names = parents.map(s => s.name);
+  // Filter out redundant parent names that are already contained in child names
+  const filteredParents = parents.filter(parent => 
+    !symbol.name.includes(parent.name) && 
+    !parents.some(p => p !== parent && p.name.includes(parent.name))
+  );
+  
+  const names = filteredParents.map(s => s.name);
   names.push(symbol.name);
 
-  // Include docstring or preceding comments (up to 5 lines above)
-  const docRangeStart = Math.max(symbol.range.start.line - 5, 0);
+  // For method/function symbols, include the first line (signature) as context
+  const firstLine = doc.lineAt(symbol.range.start.line).text.trim();
+  
+  // Include docstring or preceding comments (up to 3 lines above)
+  const docRangeStart = Math.max(symbol.range.start.line - 3, 0);
   const contextLines = doc.getText(
     new vscode.Range(docRangeStart, 0, symbol.range.start.line, 0)
-  ).trim();
+  )
+  .split('\n')
+  .filter(line => line.trim().startsWith('*') || line.trim().startsWith('//') || line.trim().startsWith('#'))
+  .join('\n')
+  .trim();
 
-  return (contextLines ? contextLines + '\n' : '') + names.join(' > ');
+  const context = names.join(' > ');
+  
+  // Only add docstring if it's not empty and not too long
+  if (contextLines && contextLines.length < 200) {
+    return context + (contextLines ? '\n' + contextLines : '');
+  }
+  
+  return context;
 }
 
 // Declare this variable at a higher scope so we can access the provider
@@ -115,13 +135,13 @@ export function activate(context: vscode.ExtensionContext) {
     if (!query) {
       return [];
     }
-
+  
     const apiKey = await getOpenAIKey(context);
     if (!apiKey) {
       vscode.window.showErrorMessage('Search++: OpenAI API Key is required.');
       return [];
     }
-
+  
     const workspaceFolders = vscode.workspace.workspaceFolders;
     if (!workspaceFolders) {
       vscode.window.showErrorMessage('Search++: No workspace folder open.');
@@ -129,7 +149,7 @@ export function activate(context: vscode.ExtensionContext) {
     }
     const workspacePath = workspaceFolders[0].uri.fsPath;
     const embeddingPath = path.join(workspacePath, EMBEDDING_FILE);
-
+  
     let embeddedChunks: EmbeddedChunk[] = [];
     if (fs.existsSync(embeddingPath)) {
       console.log(`[Search++] Loading embeddings from ${embeddingPath}`);
@@ -141,24 +161,43 @@ export function activate(context: vscode.ExtensionContext) {
       fs.writeFileSync(embeddingPath, JSON.stringify(embeddedChunks, null, 2), 'utf-8');
       console.log(`[Search++] Indexed and stored ${embeddedChunks.length} code chunks.`);
     }
-
+  
     console.log('[Search++] Embedding user query...');
     const queryEmbedding = await getEmbedding(query, apiKey);
     if (!queryEmbedding) {
       vscode.window.showErrorMessage('Search++: Failed to embed query.');
       return [];
     }
-
+  
     console.log('[Search++] Scoring matches...');
     const results = embeddedChunks.map(chunk => {
       return {
         ...chunk,
         score: cosineSimilarity(queryEmbedding, chunk.embedding)
       };
-    }).sort((a, b) => b.score - a.score).slice(0, 10); // Increased to 10 results
-
-    console.log('[Search++] Top matches:', results);
-    return results;
+    }).sort((a, b) => b.score - a.score);
+    
+    // Deduplicate results based on code content and file path
+    const deduplicatedResults = [];
+    const seenFingerprints = new Set<string>();
+    
+    for (const result of results) {
+      // Create a composite key of file path + fingerprint
+      const compositeKey = `${result.filePath}:${result.fingerprint}`;
+      
+      if (!seenFingerprints.has(compositeKey)) {
+        seenFingerprints.add(compositeKey);
+        deduplicatedResults.push(result);
+        
+        // Only take the first 15 deduplicated results
+        if (deduplicatedResults.length >= 15) {
+          break;
+        }
+      }
+    }
+  
+    console.log(`[Search++] Top matches: ${deduplicatedResults.length}`);
+    return deduplicatedResults;
   });
 
   context.subscriptions.push(performSearchCommand);
@@ -315,14 +354,18 @@ function cosineSimilarity(a: number[], b: number[]): number {
 }
 
 
+// Replace the indexWorkspace function with this improved version:
 async function indexWorkspace(apiKey: string): Promise<EmbeddedChunk[]> {
   console.log('[Search++] Indexing full workspace...');
   const workspaceFolders = vscode.workspace.workspaceFolders;
   if (!workspaceFolders) return [];
 
   const files = await vscode.workspace.findFiles('**/*.{ts,js,tsx,jsx,py,java,go,rs}', '**/node_modules/**');
-  const embeddedChunks: EmbeddedChunk[] = [];
+  let embeddedChunks: EmbeddedChunk[] = [];
 
+  // Set to track fingerprints we've already processed to avoid duplicates
+  const processedFingerprints = new Set<string>();
+  
   for (const file of files) {
     try {
       const doc = await vscode.workspace.openTextDocument(file);
@@ -332,6 +375,7 @@ async function indexWorkspace(apiKey: string): Promise<EmbeddedChunk[]> {
 
       if (!symbols) continue;
 
+      // First pass: collect all symbols that we want to embed
       type FlattenedSymbol = {
         symbol: vscode.DocumentSymbol;
         parents: vscode.DocumentSymbol[];
@@ -346,14 +390,59 @@ async function indexWorkspace(apiKey: string): Promise<EmbeddedChunk[]> {
 
       const flattened = flatten(symbols);
 
+      // Second pass: Process only non-overlapping or minimally overlapping symbols
+      // Sort by symbol size (smaller symbols first)
+      flattened.sort((a, b) => {
+        const aSize = a.symbol.range.end.line - a.symbol.range.start.line;
+        const bSize = b.symbol.range.end.line - b.symbol.range.start.line;
+        return aSize - bSize; 
+      });
+
+      // Process symbols
+      const processedRanges: {start: number, end: number}[] = [];
+      
       for (let i = 0; i < flattened.length; i += PARALLEL_EMBED_LIMIT) {
         const batch = flattened.slice(i, i + PARALLEL_EMBED_LIMIT);
-        await Promise.all(batch.map(async ({ symbol, parents }) => {
+        
+        // Filter out heavily overlapping symbols
+        const filteredBatch = batch.filter(({ symbol }) => {
+          const symbolRange = {
+            start: symbol.range.start.line,
+            end: symbol.range.end.line
+          };
+          
+          // Skip if this range heavily overlaps with a processed range
+          // Allow small overlaps (less than 30% of the symbol)
+          const overlappingRange = processedRanges.find(range => {
+            const overlap = Math.min(range.end, symbolRange.end) - Math.max(range.start, symbolRange.start);
+            const symbolSize = symbolRange.end - symbolRange.start;
+            // Skip if overlap is more than 30% of the symbol size
+            return overlap > 0 && overlap > symbolSize * 0.3;
+          });
+          
+          if (overlappingRange) {
+            return false;
+          }
+          
+          // If not heavily overlapping, add to processed ranges
+          processedRanges.push(symbolRange);
+          return true;
+        });
+        
+        await Promise.all(filteredBatch.map(async ({ symbol, parents }) => {
           const code = doc.getText(symbol.range);
-          const context = getSymbolContextWithParents(symbol, parents, doc);
           const fingerprint = generateFingerprint(code);
-
+          
+          // Skip if we've already processed this exact code
+          if (processedFingerprints.has(fingerprint)) {
+            return;
+          }
+          
+          processedFingerprints.add(fingerprint);
+          
+          const context = getSymbolContextWithParents(symbol, parents, doc);
           const embedding = await getEmbedding(code, apiKey);
+          
           if (embedding) {
             embeddedChunks.push({
               embedding,
