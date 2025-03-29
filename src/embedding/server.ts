@@ -426,7 +426,7 @@ export async function installRequirements(pythonExecutable: string, requirements
           
         } catch (installError) {
           console.error('[Search++] Failed to install requirements with system pip:', installError);
-          reject(new Error(`Failed to install requirements with system pip: ${installError.message || installError}`));
+          reject(new Error(`Failed to install requirements with system pip: ${(installError as any).message || installError}`));
           return;
         }
       }

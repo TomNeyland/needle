@@ -9,6 +9,7 @@ const SERVER_URL = `http://localhost:${SERVER_PORT}`;
 // Flag to track server status
 let serverReady = false;
 
+
 /**
  * Gets an embedding from the local embedding server
  */
@@ -30,7 +31,7 @@ export async function getLocalEmbedding(text: string): Promise<number[] | null> 
       body: JSON.stringify({ code: text })
     });
     
-    const data = await res.json();
+    const data = await res.json() as any;
     console.log('[Search++] Received embedding response from local server');
     return data?.embedding || null;
   } catch (err) {

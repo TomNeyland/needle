@@ -3,9 +3,9 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import { getLocalEmbedding } from './embeddings';
-import { EmbeddedChunk, generateFingerprint, getSymbolContextWithParents } from '../utils/embeddingUtils';
+import { EmbeddedChunk, generateFingerprint, getSymbolContextWithParents } from '../utils';
 import { startEmbeddingServer } from './server';
-
+import { global } from '../extension';
 const EMBEDDING_FILE = 'searchpp.embeddings.json';
 const PARALLEL_EMBED_LIMIT = 75; // Configurable rate limit
 
@@ -16,7 +16,7 @@ export async function indexWorkspace(apiKey: string): Promise<EmbeddedChunk[]> {
   console.log('[Search++] Indexing full workspace...');
   
   // Make sure server is running
-  const serverStarted = await startEmbeddingServer(vscode.extensions.getExtension('searchpp')?.extensionContext as vscode.ExtensionContext);
+  const serverStarted = await startEmbeddingServer(global.extensionContext);
   if (!serverStarted) {
     vscode.window.showErrorMessage('Search++: Failed to start embedding server. Indexing will not work.');
     return [];

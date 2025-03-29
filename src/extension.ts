@@ -1,8 +1,9 @@
 // src/extension.ts
 import * as vscode from 'vscode';
 import { SearchSidebarViewProvider } from './SearchSidebarViewProvider';
-import { registerCommands } from './commands';
+import { registerCommands } from './commands/commands';
 import { startEmbeddingServer, stopEmbeddingServer } from './embedding/server';
+import { setupFileWatcher } from './embedding/indexer';
 
 // Global extension context for use in other modules
 export const global = { 
@@ -25,6 +26,9 @@ export function activate(context: vscode.ExtensionContext) {
       vscode.window.showErrorMessage('Search++: Failed to start local embedding server. Semantic search will not work.');
     }
   });
+
+  // Set up file watcher for reindexing on save
+  setupFileWatcher(context);
   
   // Create and register the sidebar provider
   searchSidebarProvider = new SearchSidebarViewProvider(context);
@@ -42,6 +46,7 @@ export function activate(context: vscode.ExtensionContext) {
   statusBarItem.command = "searchpp.smartFind";
   statusBarItem.show();
   context.subscriptions.push(statusBarItem);
+
 
   // Register all extension commands
   registerCommands(context);
