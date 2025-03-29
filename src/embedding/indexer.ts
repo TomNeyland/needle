@@ -13,6 +13,11 @@ function isFileInAHiddenFolder(filePath: string): boolean {
   return segments.some(segment => segment.startsWith('.') && segment.length > 1);
 }
 
+function isExcludedFileType(filePath: string): boolean {
+  const excludedExtensions = ['.json', '.sqlite', '.png', '.jpg', '.jpeg', '.gif', '.zip', '.exe'];
+  return excludedExtensions.some(ext => filePath.endsWith(ext));
+}
+
 async function getLocalEmbeddingsBatch(codes: string[]): Promise<number[][]> {
   console.log(`[Search++] Sending embedding batch (size: ${codes.length})`);
   const res = await fetch('http://localhost:8000/embed', {
@@ -63,16 +68,16 @@ export async function indexWorkspace(apiKey: string): Promise<EmbeddedChunk[]> {
   if (!workspaceFolders) return [];
 
   const files = await vscode.workspace.findFiles(
-    '**/*.{ts,js,tsx,jsx,py,java,go,rs}',
-    '**/{node_modules,\\.*/}/**'
+    '**/*', // Include all files
+    '**/{node_modules,.*}/**' // Exclude node_modules and hidden directories
   );
 
   const processedFingerprints = new Set<string>();
   const symbolsToEmbed: SymbolToEmbed[] = [];
 
   for (const file of files) {
-    if (isFileInAHiddenFolder(file.fsPath)) {
-      console.log(`[Search++] Skipping file in hidden folder: ${file.fsPath}`);
+    if (isFileInAHiddenFolder(file.fsPath) || isExcludedFileType(file.fsPath)) {
+      console.log(`[Search++] Skipping excluded file: ${file.fsPath}`);
       continue;
     }
 

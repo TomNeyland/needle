@@ -1,6 +1,7 @@
 // src/utils/embeddingUtils.ts
 import * as vscode from 'vscode';
 import * as crypto from 'crypto';
+import * as path from 'path';
 
 export interface EmbeddedChunk {
   embedding: number[];
@@ -56,13 +57,17 @@ export function getSymbolContextWithParents(
   .join('\n')
   .trim();
 
-  const context = `[${symbol.kind}] ${names.join(' > ')}`;
+  const fileExtension = path.extname(doc.uri.fsPath); // Get file extension
+  const symbolDetail = symbol.detail ? ` (${symbol.detail})` : ''; // Include symbol detail if available
+  const parentHierarchy = filteredParents.map(p => `[${p.kind}] ${p.name}`).join(' > '); // Parent hierarchy
+
+  const context = `[${symbol.kind}] ${names.join(' > ')} (${fileExtension})${symbolDetail}`; // Include file extension and detail
 
   if (contextLines && contextLines.length < 200) {
-    return context + (contextLines ? '\n' + contextLines : '');
+    return context + (contextLines ? '\n' + contextLines : '') + (parentHierarchy ? `\nParents: ${parentHierarchy}` : '');
   }
 
-  return context;
+  return context + (parentHierarchy ? `\nParents: ${parentHierarchy}` : '');
 }
 
 /**
