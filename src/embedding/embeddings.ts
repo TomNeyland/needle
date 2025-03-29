@@ -9,7 +9,6 @@ const SERVER_URL = `http://localhost:${SERVER_PORT}`;
 // Flag to track server status
 let serverReady = false;
 
-
 /**
  * Gets an embedding from the local embedding server
  */

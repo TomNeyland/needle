@@ -66,14 +66,40 @@ export function getSymbolContextWithParents(
 }
 
 export function symbolIsTooSmall(symbol: vscode.DocumentSymbol, doc: vscode.TextDocument): boolean {
-  const code = doc.getText(symbol.range).trim();
-  const length = code.length;
-  if (length < 10 || length > 4000) return true;
-  if (!/[=({]/.test(code)) return true;
+  const kind = symbol.kind;
+  const name = symbol.name;
+  const size = symbol.range.end.line - symbol.range.start.line + 1;
+
+  // Always include high-value symbols
+  if (
+    kind === vscode.SymbolKind.Class ||
+    kind === vscode.SymbolKind.Constructor ||
+    name.toLowerCase().includes('__init__') ||
+    name.toLowerCase().includes('constructor')
+  ) {
+    return false;
+  }
+
+  // 🔥 Skip tiny variable *symbols* (not code) — e.g., just `path`
+  if (
+    kind === vscode.SymbolKind.Variable &&
+    size === 1 &&
+    symbol.children.length === 0
+  ) {
+    const text = doc.getText(symbol.selectionRange).trim();
+    // if the selected text is a single identifier (no `=` or `:` or keyword), skip it
+    if (/^[a-zA-Z_$][\w$]*$/.test(text)) {
+      console.log(`[Search++] Skipping trivial variable symbol: "${text}"`);
+      return true;
+    }
+  }
+
+  // Optional: skip any non-important tiny symbols
+  if (size < 3) {
+    console.log(`[Search++] Skipping small symbol: ${name} (${vscode.SymbolKind[kind]}) - ${size} lines`);
+    return true;
+  }
+
   return false;
 }
 
-export function isTooLargeForEmbedding(code: string): boolean {
-  const approxTokens = Math.ceil(code.length / 4);
-  return approxTokens > 8000;
-}

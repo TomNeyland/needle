@@ -6,7 +6,7 @@ import { startEmbeddingServer } from './server';
 import { global } from '../extension';
 
 const EMBEDDING_FILE = 'searchpp.embeddings.json';
-const PARALLEL_EMBED_LIMIT = 500;
+const PARALLEL_EMBED_LIMIT = 2048; // OpenAI's max input batch size
 
 function isFileInAHiddenFolder(filePath: string): boolean {
   const segments = filePath.split(path.sep);
@@ -31,7 +31,24 @@ async function getLocalEmbeddingsBatch(codes: string[]): Promise<number[][]> {
   return data.embeddings;
 }
 
+type SymbolToEmbed = {
+  code: string;
+  fingerprint: string;
+  filePath: string;
+  symbol: vscode.DocumentSymbol;
+  parents: vscode.DocumentSymbol[];
+  doc: vscode.TextDocument;
+};
+
 type FlattenedSymbol = { symbol: vscode.DocumentSymbol; parents: vscode.DocumentSymbol[] };
+
+function chunkArray<T>(arr: T[], size: number): T[][] {
+  const chunks: T[][] = [];
+  for (let i = 0; i < arr.length; i += size) {
+    chunks.push(arr.slice(i, i + size));
+  }
+  return chunks;
+}
 
 export async function indexWorkspace(apiKey: string): Promise<EmbeddedChunk[]> {
   console.log('[Search++] Indexing full workspace...');
@@ -50,8 +67,8 @@ export async function indexWorkspace(apiKey: string): Promise<EmbeddedChunk[]> {
     '**/{node_modules,\\.*/}/**'
   );
 
-  let embeddedChunks: EmbeddedChunk[] = [];
   const processedFingerprints = new Set<string>();
+  const symbolsToEmbed: SymbolToEmbed[] = [];
 
   for (const file of files) {
     if (isFileInAHiddenFolder(file.fsPath)) {
@@ -85,42 +102,19 @@ export async function indexWorkspace(apiKey: string): Promise<EmbeddedChunk[]> {
         }
       }
 
-      for (let i = 0; i < nonOverlapping.length; i += PARALLEL_EMBED_LIMIT) {
-        const batch = nonOverlapping.slice(i, i + PARALLEL_EMBED_LIMIT);
+      for (const { symbol, parents } of nonOverlapping) {
+        const code = doc.getText(symbol.range);
+        const fingerprint = generateFingerprint(code);
+        if (processedFingerprints.has(fingerprint)) continue;
+        processedFingerprints.add(fingerprint);
 
-        const codeInputs = batch.map(({ symbol }) => doc.getText(symbol.range));
-        const fingerprints = codeInputs.map(code => generateFingerprint(code));
-
-        const filtered: {
-          code: string;
-          symbol: vscode.DocumentSymbol;
-          parents: vscode.DocumentSymbol[];
-          fingerprint: string;
-        }[] = [];
-
-        for (let j = 0; j < batch.length; j++) {
-          const { symbol, parents } = batch[j];
-          const fingerprint = fingerprints[j];
-          if (processedFingerprints.has(fingerprint)) continue;
-          processedFingerprints.add(fingerprint);
-          filtered.push({ code: codeInputs[j], symbol, parents, fingerprint });
-        }
-
-        if (filtered.length === 0) continue;
-
-        const codesToSend = filtered.map(item => item.code);
-        const embeddings = await getLocalEmbeddingsBatch(codesToSend);
-
-        filtered.forEach((item, idx) => {
-          embeddedChunks.push({
-            embedding: embeddings[idx],
-            code: item.code,
-            filePath: file.fsPath,
-            lineStart: item.symbol.range.start.line,
-            lineEnd: item.symbol.range.end.line,
-            fingerprint: item.fingerprint,
-            context: getSymbolContextWithParents(item.symbol, item.parents, doc)
-          });
+        symbolsToEmbed.push({
+          code,
+          fingerprint,
+          filePath: file.fsPath,
+          symbol,
+          parents,
+          doc
         });
       }
     } catch (err) {
@@ -128,8 +122,34 @@ export async function indexWorkspace(apiKey: string): Promise<EmbeddedChunk[]> {
     }
   }
 
+  console.log(`[Search++] Collected ${symbolsToEmbed.length} symbols for embedding.`);
+
+  // Batch everything globally now
+  const batches = chunkArray(symbolsToEmbed, PARALLEL_EMBED_LIMIT);
+  console.log(`[Search++] Embedding in ${batches.length} total batches.`);
+
+  const embeddedChunks: EmbeddedChunk[] = [];
+
+  const results = await Promise.all(batches.map(async (batch, i) => {
+    const codes = batch.map(item => item.code);
+    const embeddings = await getLocalEmbeddingsBatch(codes);
+
+    return batch.map((item, idx) => ({
+      embedding: embeddings[idx],
+      code: item.code,
+      filePath: item.filePath,
+      lineStart: item.symbol.range.start.line,
+      lineEnd: item.symbol.range.end.line,
+      fingerprint: item.fingerprint,
+      context: getSymbolContextWithParents(item.symbol, item.parents, item.doc)
+    }));
+  }));
+
+  results.flat().forEach(chunk => embeddedChunks.push(chunk));
+
   return embeddedChunks;
 }
+
 
 export function setupFileWatcher(context: vscode.ExtensionContext): void {
   vscode.workspace.onDidSaveTextDocument(async (doc) => {
@@ -138,6 +158,7 @@ export function setupFileWatcher(context: vscode.ExtensionContext): void {
 
     const workspacePath = vscode.workspace.workspaceFolders[0].uri.fsPath;
     const embeddingPath = path.join(workspacePath, EMBEDDING_FILE);
+
     let embeddedChunks: EmbeddedChunk[] = [];
     if (fs.existsSync(embeddingPath)) {
       embeddedChunks = JSON.parse(fs.readFileSync(embeddingPath, 'utf-8'));
@@ -167,54 +188,53 @@ export function setupFileWatcher(context: vscode.ExtensionContext): void {
       }
     }
 
-    console.log(`[Search++] Re-embedding ${nonOverlapping.length} symbols from ${doc.uri.fsPath}`);
+    const filtered: SymbolToEmbed[] = [];
+    for (const { symbol, parents } of nonOverlapping) {
+      const code = doc.getText(symbol.range);
+      const fingerprint = generateFingerprint(code);
 
-    for (let i = 0; i < nonOverlapping.length; i += PARALLEL_EMBED_LIMIT) {
-      const batch = nonOverlapping.slice(i, i + PARALLEL_EMBED_LIMIT);
+      const existing = embeddedChunks.find(
+        c => c.filePath === doc.uri.fsPath &&
+             c.lineStart === symbol.range.start.line &&
+             c.fingerprint === fingerprint
+      );
 
-      const codeInputs = batch.map(({ symbol }) => doc.getText(symbol.range));
-      const fingerprints = codeInputs.map(code => generateFingerprint(code));
-
-      const filtered: {
-        code: string;
-        symbol: vscode.DocumentSymbol;
-        parents: vscode.DocumentSymbol[];
-        fingerprint: string;
-      }[] = [];
-
-      for (let j = 0; j < batch.length; j++) {
-        const { symbol, parents } = batch[j];
-        const fingerprint = fingerprints[j];
-        const existing = embeddedChunks.find(
-          c => c.filePath === doc.uri.fsPath &&
-               c.lineStart === symbol.range.start.line &&
-               c.fingerprint === fingerprint
-        );
-        if (existing) continue;
-        filtered.push({ code: codeInputs[j], symbol, parents, fingerprint });
+      if (existing) {
+        continue;
       }
 
-      if (filtered.length === 0) continue;
-
-      const codesToSend = filtered.map(item => item.code);
-      const embeddings = await getLocalEmbeddingsBatch(codesToSend);
-
-      const updatedChunks = filtered.map((item, idx) => ({
-        embedding: embeddings[idx],
-        code: item.code,
+      filtered.push({
+        code,
+        fingerprint,
         filePath: doc.uri.fsPath,
-        lineStart: item.symbol.range.start.line,
-        lineEnd: item.symbol.range.end.line,
-        fingerprint: item.fingerprint,
-        context: getSymbolContextWithParents(item.symbol, item.parents, doc)
-      }));
-
-      embeddedChunks = embeddedChunks.filter(chunk => chunk.filePath !== doc.uri.fsPath);
-      embeddedChunks.push(...updatedChunks);
+        symbol,
+        parents,
+        doc
+      });
     }
 
+    console.log(`[Search++] Re-embedding ${filtered.length} updated symbols from ${doc.uri.fsPath}`);
+    if (filtered.length === 0) return;
+
+    const codes = filtered.map(item => item.code);
+    const embeddings = await getLocalEmbeddingsBatch(codes);
+
+    const updatedChunks = filtered.map((item, idx) => ({
+      embedding: embeddings[idx],
+      code: item.code,
+      filePath: item.filePath,
+      lineStart: item.symbol.range.start.line,
+      lineEnd: item.symbol.range.end.line,
+      fingerprint: item.fingerprint,
+      context: getSymbolContextWithParents(item.symbol, item.parents, item.doc)
+    }));
+
+    // Remove old chunks for this file
+    embeddedChunks = embeddedChunks.filter(c => c.filePath !== doc.uri.fsPath);
+    embeddedChunks.push(...updatedChunks);
+
     fs.writeFileSync(embeddingPath, JSON.stringify(embeddedChunks, null, 2), 'utf-8');
-    vscode.window.showInformationMessage(`Search++ re-indexed ${doc.uri.path}`);
+    vscode.window.showInformationMessage(`Search++ re-indexed ${updatedChunks.length} chunks from ${path.basename(doc.uri.fsPath)}`);
     console.log(`[Search++] Saved updated embeddings for ${doc.uri.fsPath}`);
   }, null, context.subscriptions);
 }
