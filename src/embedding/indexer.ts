@@ -1,7 +1,7 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
-import { getSymbolContextWithParents, generateFingerprint, symbolIsTooSmall, EmbeddedChunk } from '../utils/embeddingUtils';
+import { getSymbolContextWithParents, generateFingerprint, symbolIsTooSmall, EmbeddedChunk, parseHTMLSymbols } from '../utils/embeddingUtils';
 import { startEmbeddingServer } from './server';
 import { global } from '../extension';
 
@@ -15,6 +15,7 @@ function isFileInAHiddenFolder(filePath: string): boolean {
 
 function isExcludedFileType(filePath: string): boolean {
   const excludedExtensions = ['.json', '.sqlite', '.png', '.jpg', '.jpeg', '.gif', '.zip', '.exe'];
+  // Allow .html files
   return excludedExtensions.some(ext => filePath.endsWith(ext));
 }
 
@@ -83,21 +84,31 @@ export async function indexWorkspace(apiKey: string): Promise<EmbeddedChunk[]> {
 
     try {
       const doc = await vscode.workspace.openTextDocument(file);
-      const symbols = await vscode.commands.executeCommand<vscode.DocumentSymbol[]>(
-        'vscode.executeDocumentSymbolProvider', file
-      );
-      if (!symbols) continue;
+      const fileExtension = path.extname(file.fsPath);
 
-      const flatten = (symbols: vscode.DocumentSymbol[], parents: vscode.DocumentSymbol[] = []): FlattenedSymbol[] =>
-        symbols.flatMap(sym => [{ symbol: sym, parents }, ...flatten(sym.children, [...parents, sym])]);
+      let symbols: FlattenedSymbol[] = [];
+      if (fileExtension === '.html') {
+        // Parse HTML symbols using htmlparser2
+        symbols = parseHTMLSymbols(doc);
+      } else {
+        // Use default symbol provider for other file types
+        const documentSymbols = await vscode.commands.executeCommand<vscode.DocumentSymbol[]>(
+          'vscode.executeDocumentSymbolProvider', file
+        );
+        if (!documentSymbols) continue;
 
-      const flattened = flatten(symbols).sort((a: FlattenedSymbol, b: FlattenedSymbol) =>
-        a.symbol.range.start.line - b.symbol.range.start.line
-      );
+        const flatten = (symbols: vscode.DocumentSymbol[], parents: vscode.DocumentSymbol[] = []): FlattenedSymbol[] =>
+          symbols.flatMap(sym => [{ symbol: sym, parents }, ...flatten(sym.children, [...parents, sym])]);
 
+        symbols = flatten(documentSymbols).sort((a, b) =>
+          a.symbol.range.start.line - b.symbol.range.start.line
+        );
+      }
+
+      // Process symbols (common logic for all file types)
       const nonOverlapping: FlattenedSymbol[] = [];
       let lastEnd = -1;
-      for (const item of flattened) {
+      for (const item of symbols) {
         const { symbol } = item;
         const start = symbol.range.start.line;
         const end = symbol.range.end.line;
@@ -169,17 +180,26 @@ export function setupFileWatcher(context: vscode.ExtensionContext): void {
       embeddedChunks = JSON.parse(fs.readFileSync(embeddingPath, 'utf-8'));
     }
 
-    const documentSymbols = await vscode.commands.executeCommand<vscode.DocumentSymbol[]>(
-      'vscode.executeDocumentSymbolProvider', doc.uri
-    );
-    if (!documentSymbols) return;
+    let flattened: FlattenedSymbol[] = [];
+    const fileExtension = path.extname(doc.uri.fsPath);
+    
+    if (fileExtension === '.html') {
+      // Parse HTML symbols using our custom parser
+      flattened = parseHTMLSymbols(doc);
+    } else {
+      // Use default symbol provider for other file types
+      const documentSymbols = await vscode.commands.executeCommand<vscode.DocumentSymbol[]>(
+        'vscode.executeDocumentSymbolProvider', doc.uri
+      );
+      if (!documentSymbols) return;
 
-    const flatten = (symbols: vscode.DocumentSymbol[], parents: vscode.DocumentSymbol[] = []): FlattenedSymbol[] =>
-      symbols.flatMap(sym => [{ symbol: sym, parents }, ...flatten(sym.children, [...parents, sym])]);
+      const flatten = (symbols: vscode.DocumentSymbol[], parents: vscode.DocumentSymbol[] = []): FlattenedSymbol[] =>
+        symbols.flatMap(sym => [{ symbol: sym, parents }, ...flatten(sym.children, [...parents, sym])]);
 
-    const flattened = flatten(documentSymbols).sort((a: FlattenedSymbol, b: FlattenedSymbol) =>
-      a.symbol.range.start.line - b.symbol.range.start.line
-    );
+      flattened = flatten(documentSymbols).sort((a, b) =>
+        a.symbol.range.start.line - b.symbol.range.start.line
+      );
+    }
 
     const nonOverlapping: FlattenedSymbol[] = [];
     let lastEnd = -1;

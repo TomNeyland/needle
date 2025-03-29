@@ -6,6 +6,7 @@ import { SearchSidebarViewProvider } from './SearchSidebarViewProvider';
 import { registerCommands } from './commands/commands';
 import { startEmbeddingServer, stopEmbeddingServer } from './embedding/server';
 import { setupFileWatcher } from './embedding/indexer';
+import { regenerateEmbeddings } from './embedding/regenerator'; // Assuming this is the correct import
 
 // Global extension context for use in other modules
 export const global = { 
@@ -55,6 +56,19 @@ export function activate(context: vscode.ExtensionContext) {
 
     // Register all extension commands
     registerCommands(context);
+
+    // Register the regenerateEmbeddings command
+    context.subscriptions.push(
+      vscode.commands.registerCommand('searchpp.regenerateEmbeddings', async () => {
+        try {
+          const success = await regenerateEmbeddings();
+          return success;
+        } catch (error) {
+          vscode.window.showErrorMessage(`Search++: Failed to regenerate embeddings: ${error instanceof Error ? error.message : 'Unknown error'}`);
+          throw error;
+        }
+      })
+    );
 
     console.log('🔍 [Search++] Extension activated successfully');
   } catch (error) {

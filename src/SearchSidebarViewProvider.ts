@@ -22,7 +22,15 @@ export class SearchSidebarViewProvider implements vscode.WebviewViewProvider {
     webviewView.webview.onDidReceiveMessage(async message => {
       if (message.type === 'search') {
         const query = message.query;
-        const results = await vscode.commands.executeCommand('searchpp.performSearch', query);
+        const exclusionPattern = message.exclusionPattern || '';
+        console.log(`[Search++] Received search request with query: "${query}" and exclusion pattern: "${exclusionPattern}"`);
+        
+        // Make sure we're explicitly passing the exclusion pattern as a string
+        const results = await vscode.commands.executeCommand(
+          'searchpp.performSearch', 
+          query, 
+          exclusionPattern.toString()
+        );
         this.postSearchResults(results as any);
       } else if (message.type === 'openFile') {
         const filePath = message.filePath;
@@ -35,6 +43,27 @@ export class SearchSidebarViewProvider implements vscode.WebviewViewProvider {
         const range = new vscode.Range(lineStart, 0, lineEnd + 1, 0);
         editor.revealRange(range, vscode.TextEditorRevealType.InCenter);
         editor.selection = new vscode.Selection(range.start, range.end);
+      } else if (message.type === 'regenerateEmbeddings') {
+        const exclusionPattern = message.exclusionPattern || '';
+        console.log(`[Search++] Regenerating embeddings with exclusion pattern: "${exclusionPattern}"`);
+        try {
+          await vscode.window.withProgress(
+            {
+              location: vscode.ProgressLocation.Notification,
+              title: "Regenerating Search++ embeddings...",
+              cancellable: false
+            },
+            async () => {
+              await vscode.commands.executeCommand('searchpp.regenerateEmbeddings', exclusionPattern);
+            }
+          );
+          this.postMessage({ type: 'regenerationSuccess' });
+        } catch (error) {
+          this.postMessage({ 
+            type: 'regenerationError', 
+            message: error instanceof Error ? error.message : 'An unknown error occurred'
+          });
+        }
       }
     });
   }
@@ -45,6 +74,12 @@ export class SearchSidebarViewProvider implements vscode.WebviewViewProvider {
         type: 'searchResults',
         results
       });
+    }
+  }
+
+  private postMessage(message: any) {
+    if (this._view) {
+      this._view.webview.postMessage(message);
     }
   }
 
@@ -146,6 +181,44 @@ export class SearchSidebarViewProvider implements vscode.WebviewViewProvider {
           #queryInput {
             flex-grow: 1;
           }
+          .exclusion-container {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            margin-top: 8px;
+            font-size: 12px;
+          }
+          .exclusion-container label {
+            white-space: nowrap;
+          }
+          .exclusion-container input {
+            flex-grow: 1;
+            font-size: 12px;
+            padding: 4px 6px;
+          }
+          .actions-container {
+            display: flex;
+            justify-content: flex-end;
+            margin-top: 8px;
+          }
+          .regen-button {
+            font-size: 12px;
+            padding: 4px 8px;
+          }
+          .notification {
+            margin-top: 10px;
+            padding: 8px;
+            border-radius: 4px;
+            font-size: 12px;
+          }
+          .success {
+            background-color: var(--vscode-terminal-ansiGreen);
+            color: var(--vscode-editor-background);
+          }
+          .error {
+            background-color: var(--vscode-terminal-ansiRed);
+            color: var(--vscode-editor-foreground);
+          }
         </style>
       </head>
       <body>
@@ -155,6 +228,17 @@ export class SearchSidebarViewProvider implements vscode.WebviewViewProvider {
             <input id="queryInput" type="text" placeholder="Ask your code..." />
             <button id="searchButton" type="submit">Search</button>
           </form>
+          
+          <div class="exclusion-container">
+            <label for="exclusionInput">Exclude:</label>
+            <input id="exclusionInput" type="text" placeholder="e.g., *.{json,md,txt}" title="Regex pattern to exclude files from search" />
+          </div>
+          
+          <div class="actions-container">
+            <button id="regenerateButton" class="regen-button" title="Regenerate the embeddings cache file">Regenerate Index</button>
+          </div>
+          
+          <div id="notification" class="notification" style="display: none;"></div>
         </div>
         
         <div id="loadingIndicator" class="loading" style="display: none;">
@@ -167,19 +251,46 @@ export class SearchSidebarViewProvider implements vscode.WebviewViewProvider {
           const vscode = acquireVsCodeApi();
           const resultsContainer = document.getElementById('resultsContainer');
           const loadingIndicator = document.getElementById('loadingIndicator');
+          const notification = document.getElementById('notification');
+          const exclusionInput = document.getElementById('exclusionInput');
 
           document.getElementById('searchForm').addEventListener('submit', (e) => {
             e.preventDefault();
             search();
           });
+          
+          document.getElementById('regenerateButton').addEventListener('click', (e) => {
+            e.preventDefault();
+            regenerateEmbeddings();
+          });
 
           function search() {
             const query = document.getElementById('queryInput').value;
+            const exclusionValue = document.getElementById('exclusionInput').value.trim();
+            console.log('UI sending search with exclusion pattern:', exclusionValue);
+            
             if (query.trim() !== '') {
               loadingIndicator.style.display = 'block';
               resultsContainer.innerHTML = '';
-              vscode.postMessage({ type: 'search', query });
+              vscode.postMessage({ 
+                type: 'search', 
+                query,
+                exclusionPattern: exclusionValue
+              });
             }
+          }
+          
+          function regenerateEmbeddings() {
+            const exclusionValue = document.getElementById('exclusionInput').value.trim();
+            console.log('UI sending regenerate with exclusion pattern:', exclusionValue);
+            
+            notification.style.display = 'none';
+            loadingIndicator.style.display = 'block';
+            loadingIndicator.textContent = 'Regenerating embeddings cache...';
+            vscode.postMessage({ 
+              type: 'regenerateEmbeddings',
+              exclusionPattern: exclusionValue
+            });
           }
 
           function openFile(filePath, lineStart, lineEnd) {
@@ -197,6 +308,19 @@ export class SearchSidebarViewProvider implements vscode.WebviewViewProvider {
             if (message.type === 'searchResults') {
               loadingIndicator.style.display = 'none';
               displayResults(message.results);
+            } else if (message.type === 'regenerationSuccess') {
+              loadingIndicator.style.display = 'none';
+              notification.textContent = 'Embeddings cache regenerated successfully.';
+              notification.className = 'notification success';
+              notification.style.display = 'block';
+              setTimeout(() => {
+                notification.style.display = 'none';
+              }, 5000);
+            } else if (message.type === 'regenerationError') {
+              loadingIndicator.style.display = 'none';
+              notification.textContent = 'Error: ' + message.message;
+              notification.className = 'notification error';
+              notification.style.display = 'block';
             }
           });
 

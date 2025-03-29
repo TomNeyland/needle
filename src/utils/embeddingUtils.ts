@@ -2,6 +2,7 @@
 import * as vscode from 'vscode';
 import * as crypto from 'crypto';
 import * as path from 'path';
+import { parseDocument } from 'htmlparser2';
 
 export interface EmbeddedChunk {
   embedding: number[];
@@ -57,11 +58,18 @@ export function getSymbolContextWithParents(
   .join('\n')
   .trim();
 
-  const fileExtension = path.extname(doc.uri.fsPath); // Get file extension
-  const symbolDetail = symbol.detail ? ` (${symbol.detail})` : ''; // Include symbol detail if available
-  const parentHierarchy = filteredParents.map(p => `[${p.kind}] ${p.name}`).join(' > '); // Parent hierarchy
+  const fileExtension = path.extname(doc.uri.fsPath);
+  if (fileExtension === '.html') {
+    const tagName = symbol.name; // Assume symbol name is the tag name
+    const attributes = doc.getText(symbol.range).match(/<\s*[\w-]+\s+([^>]+)>/)?.[1] || '';
+    const context = `<${tagName} ${attributes.trim()}>`.trim();
+    return context;
+  }
 
-  const context = `[${symbol.kind}] ${names.join(' > ')} (${fileExtension})${symbolDetail}`; // Include file extension and detail
+  const symbolDetail = symbol.detail ? ` (${symbol.detail})` : '';
+  const parentHierarchy = filteredParents.map(p => `[${p.kind}] ${p.name}`).join(' > ');
+
+  const context = `[${symbol.kind}] ${names.join(' > ')} (${fileExtension})${symbolDetail}`;
 
   if (contextLines && contextLines.length < 200) {
     return context + (contextLines ? '\n' + contextLines : '') + (parentHierarchy ? `\nParents: ${parentHierarchy}` : '');
@@ -175,4 +183,103 @@ export function symbolIsTooSmall(symbol: vscode.DocumentSymbol, doc: vscode.Text
   }
 
   return false;
+}
+
+/**
+ * Parses an HTML document and extracts symbols (tags and attributes).
+ * @param doc The HTML document to parse.
+ * @returns An array of FlattenedSymbol objects representing HTML elements.
+ */
+export function parseHTMLSymbols(doc: vscode.TextDocument): { symbol: vscode.DocumentSymbol; parents: vscode.DocumentSymbol[] }[] {
+  const content = doc.getText();
+  const dom = parseDocument(content);
+  const result: { symbol: vscode.DocumentSymbol; parents: vscode.DocumentSymbol[] }[] = [];
+  
+  // Map to store parent-child relationships
+  const symbolMap = new Map<any, vscode.DocumentSymbol>();
+  
+  // Helper function to recursively traverse DOM nodes
+  function traverseNode(node: any, parents: vscode.DocumentSymbol[] = []): void {
+    // Only process elements (tags)
+    if (node.type === 'tag' || node.type === 'script' || node.type === 'style') {
+      // Get start and end positions for the node
+      const startOffset = node.startIndex || 0;
+      const endOffset = node.endIndex || content.length;
+      
+      // Skip if we can't determine the position
+      if (startOffset === undefined || endOffset === undefined) {
+        return;
+      }
+      
+      try {
+        // Convert offsets to VSCode positions
+        const startPos = doc.positionAt(startOffset);
+        const endPos = doc.positionAt(endOffset);
+        
+        // Create a range for this element
+        const range = new vscode.Range(startPos, endPos);
+        
+        // Create a name with tag and important attributes (like id, class)
+        let name = node.name || 'unknown';
+        let detail = '';
+        
+        // Add attributes to the detail
+        if (node.attribs) {
+          const attrs = Object.entries(node.attribs);
+          if (attrs.length > 0) {
+            detail = attrs.map(([key, value]) => `${key}="${value}"`).join(' ');
+            
+            // Add id to name if available
+            if (node.attribs.id) {
+              name += `#${node.attribs.id}`;
+            }
+            // Add class to name if available
+            if (node.attribs.class) {
+              name += `.${node.attribs.class.replace(/\s+/g, '.')}`;
+            }
+          }
+        }
+        
+        // Create symbol for this element
+        const symbol = new vscode.DocumentSymbol(
+          name,
+          detail,
+          vscode.SymbolKind.Field,
+          range,
+          range
+        );
+        
+        // Store the relationship between DOM node and symbol
+        symbolMap.set(node, symbol);
+        
+        // Add this symbol to the result with its parent hierarchy
+        result.push({ symbol, parents });
+        
+        // Process children
+        if (node.children && node.children.length > 0) {
+          const newParents = [...parents, symbol];
+          for (const child of node.children) {
+            traverseNode(child, newParents);
+          }
+        }
+      } catch (err) {
+        console.warn(`[Search++] Error processing HTML node: ${err}`);
+      }
+    } else if (node.children && node.children.length > 0) {
+      // For non-element nodes with children (like document), just process children
+      for (const child of node.children) {
+        traverseNode(child, parents);
+      }
+    }
+  }
+  
+  // Start traversal from root
+  if (dom.children && dom.children.length > 0) {
+    for (const child of dom.children) {
+      traverseNode(child);
+    }
+  }
+  
+  console.log(`[Search++] Found ${result.length} HTML symbols`);
+  return result;
 }
