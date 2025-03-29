@@ -53,26 +53,25 @@ export class SearchSidebarViewProvider implements vscode.WebviewViewProvider {
       <!DOCTYPE html>
       <html lang="en">
       <head>
-      
         <meta charset="UTF-8">
         <meta name="viewport" content="width=device-width, initial-scale=1.0">
         <title>Search++</title>
         <style>
-          body { 
+          body {
             font-family: var(--vscode-font-family);
-            padding: 10px; 
+            padding: 10px;
             color: var(--vscode-foreground);
             background-color: var(--vscode-editor-background);
           }
-          input[type="text"] { 
-            width: 100%; 
-            padding: 8px; 
+          input[type="text"] {
+            width: 100%;
+            padding: 8px;
             background-color: var(--vscode-input-background);
             color: var(--vscode-input-foreground);
             border: 1px solid var(--vscode-input-border);
           }
-          button { 
-            padding: 6px 12px; 
+          button {
+            padding: 6px 12px;
             background-color: var(--vscode-button-background);
             color: var(--vscode-button-foreground);
             border: none;
@@ -119,6 +118,11 @@ export class SearchSidebarViewProvider implements vscode.WebviewViewProvider {
             font-size: 0.8em;
             opacity: 0.7;
           }
+          .result-context {
+            font-size: 0.85em;
+            color: var(--vscode-descriptionForeground);
+            margin-bottom: 4px;
+          }
           .result-preview {
             font-family: var(--vscode-editor-font-family);
             font-size: 0.9em;
@@ -163,12 +167,12 @@ export class SearchSidebarViewProvider implements vscode.WebviewViewProvider {
           const vscode = acquireVsCodeApi();
           const resultsContainer = document.getElementById('resultsContainer');
           const loadingIndicator = document.getElementById('loadingIndicator');
-          
+
           document.getElementById('searchForm').addEventListener('submit', (e) => {
             e.preventDefault();
             search();
           });
-          
+
           function search() {
             const query = document.getElementById('queryInput').value;
             if (query.trim() !== '') {
@@ -177,7 +181,7 @@ export class SearchSidebarViewProvider implements vscode.WebviewViewProvider {
               vscode.postMessage({ type: 'search', query });
             }
           }
-          
+
           function openFile(filePath, lineStart, lineEnd) {
             vscode.postMessage({
               type: 'openFile',
@@ -186,61 +190,56 @@ export class SearchSidebarViewProvider implements vscode.WebviewViewProvider {
               lineEnd
             });
           }
-          
+
           window.addEventListener('message', event => {
             const message = event.data;
-            
+
             if (message.type === 'searchResults') {
               loadingIndicator.style.display = 'none';
               displayResults(message.results);
             }
           });
-          
+
           function displayResults(results) {
             resultsContainer.innerHTML = '';
-            
+
             if (results.length === 0) {
               resultsContainer.innerHTML = '<div class="no-results">No matching results found</div>';
               return;
             }
-            
+
             results.forEach(result => {
               const resultItem = document.createElement('div');
               resultItem.className = 'result-item';
               resultItem.onclick = () => openFile(result.filePath, result.lineStart, result.lineEnd);
-              
+
               const fileName = result.filePath.split('/').pop().split('\\\\').pop();
-              
+
               resultItem.innerHTML = \`
                 <div class="result-header">
                   <span>\${fileName}:\${result.lineStart + 1}</span>
                   <span class="result-score">\${result.score.toFixed(2)}</span>
                 </div>
-                <div class="result-path">\${result.filePath}</div>
+                <div class="result-path">\${escapeHtml(result.filePath)}</div>
+                <div class="result-context">\${escapeHtml(result.context || '')}</div>
                 <div class="result-preview">\${highlightCode(result.code)}</div>
               \`;
-              
+
               resultsContainer.appendChild(resultItem);
             });
           }
-          
+
           function highlightCode(code) {
-            // Simple syntax highlighting
-            // In a real implementation, you might want to use a library or more sophisticated approach
             const escapedCode = escapeHtml(code);
-            
-            // Truncate if too long
             const maxLines = 7;
             const lines = escapedCode.split('\\n');
             let displayCode = lines.slice(0, maxLines).join('\\n');
-            
             if (lines.length > maxLines) {
               displayCode += '\\n...';
             }
-            
             return displayCode;
           }
-          
+
           function escapeHtml(text) {
             return text
               .replace(/&/g, "&amp;")
