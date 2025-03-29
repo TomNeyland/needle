@@ -59,9 +59,11 @@ export function activate(context: vscode.ExtensionContext) {
 
     // Register the regenerateEmbeddings command
     context.subscriptions.push(
-      vscode.commands.registerCommand('searchpp.regenerateEmbeddings', async () => {
+      vscode.commands.registerCommand('searchpp.regenerateEmbeddings', async (exclusionPattern: string = '') => {
         try {
-          const success = await regenerateEmbeddings();
+          console.log(`[Search++] Command received: regenerateEmbeddings with exclusion pattern "${exclusionPattern}"`);
+          // Make sure the exclusion pattern is explicitly passed to the function
+          const success = await regenerateEmbeddings(exclusionPattern);
           return success;
         } catch (error) {
           vscode.window.showErrorMessage(`Search++: Failed to regenerate embeddings: ${error instanceof Error ? error.message : 'Unknown error'}`);

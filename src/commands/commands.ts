@@ -1,6 +1,6 @@
 // src/commands.ts
 import * as vscode from 'vscode';
-import { performSearch } from '../search/performSearch';
+import { performSearch, regenerateEmbeddings } from '../search/performSearch';
 
 export function registerCommands(context: vscode.ExtensionContext) {
   // Register the command to set the API key
@@ -46,12 +46,9 @@ export function registerCommands(context: vscode.ExtensionContext) {
   context.subscriptions.push(smartFindCommand);
 
   // Register the performSearch command
-  const performSearchCommand = vscode.commands.registerCommand('searchpp.performSearch', async (query?: string) => {
-    if (!query) {
-      return [];
-    }
-
-    return performSearch(query);
+  const performSearchCommand = vscode.commands.registerCommand('searchpp.performSearch', async (query: string, exclusionPattern: string = '') => {
+    console.log(`[Search++] Command received: performSearch with query "${query}" and exclusion "${exclusionPattern}"`);
+    return await performSearch(query, exclusionPattern);
   });
 
   context.subscriptions.push(performSearchCommand);
