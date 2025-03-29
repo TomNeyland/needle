@@ -86,7 +86,10 @@ export async function startEmbeddingServer(context: vscode.ExtensionContext): Pr
         PATH: path.join(venvPath, isWindows ? 'Scripts' : 'bin') + path.delimiter + process.env.PATH,
         VIRTUAL_ENV: venvPath,
         SERVER_URL: SERVER_URL,
-        UVICORN_WORKERS: "15"
+        UVICORN_WORKERS: "15",
+        DEBUG: "*",
+        LOG_LEVEL: "DEBUG",
+        OPENAI_LOG: "debug",
       }
     });
 

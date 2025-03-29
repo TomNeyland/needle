@@ -2,13 +2,11 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
-import { getLocalEmbedding } from '../embedding/embeddings';
-import { EmbeddedChunk, cosineSimilarity } from '../utils/embeddingUtils';
-import { indexWorkspace } from '../embedding/indexer';
+import { EmbeddedChunk, parseHTMLSymbols, symbolIsTooSmall, generateFingerprint, getSymbolContextWithParents } from '../utils/embeddingUtils';
+import { updateFileEmbeddings, FlattenedSymbol } from '../embedding/indexer';
 import { startEmbeddingServer } from '../embedding/server';
 import { global } from '../extension';
 
-const EMBEDDING_FILE = 'searchpp.embeddings.json';
 const SIMILARITY_THRESHOLD = 0.2; // Only consider results with a score above this threshold
 const MAX_RESULTS = 15; // Maximum number of results to return
 
@@ -74,93 +72,39 @@ export async function performSearch(query: string, exclusionPattern: string = ''
     return [];
   }
 
-  // Ensure exclusionPattern is a string and normalize it
-  exclusionPattern = exclusionPattern ? String(exclusionPattern).trim() : '';
-  
-  // Log the exclusion pattern to verify it's being received correctly
-  console.log(`[Search++] Using exclusion pattern: "${exclusionPattern}"`);
+  console.log(`[Search++] Performing search for query: "${query}"`);
 
-  // Ensure the server is ready
-  const serverStarted = await startEmbeddingServer(global.extensionContext);
-  if (!serverStarted) {
-    vscode.window.showErrorMessage('Search++: Failed to start embedding server. Please try again.');
-    return [];
-  }
+  try {
+    const res = await fetch('http://localhost:8000/search', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        query,
+        max_results: MAX_RESULTS,
+        similarity_threshold: SIMILARITY_THRESHOLD
+      })
+    });
 
-  const workspaceFolders = vscode.workspace.workspaceFolders;
-  if (!workspaceFolders) {
-    vscode.window.showErrorMessage('Search++: No workspace folder open.');
-    return [];
-  }
-  const workspacePath = workspaceFolders[0].uri.fsPath;
-  const embeddingPath = path.join(workspacePath, EMBEDDING_FILE);
-
-  let embeddedChunks: EmbeddedChunk[] = [];
-  if (fs.existsSync(embeddingPath)) {
-    console.log(`[Search++] Loading embeddings from ${embeddingPath}`);
-    const raw = fs.readFileSync(embeddingPath, 'utf-8');
-    embeddedChunks = JSON.parse(raw);
-  } else {
-    console.log('[Search++] Embedding file not found. Starting full indexing...');
-    // Pass empty string instead of API key since we don't need it anymore
-    embeddedChunks = await indexWorkspace("");
-    fs.writeFileSync(embeddingPath, JSON.stringify(embeddedChunks, null, 2), 'utf-8');
-    console.log(`[Search++] Indexed and stored ${embeddedChunks.length} code chunks.`);
-  }
-
-  console.log('[Search++] Embedding user query...');
-  const queryEmbedding = await getLocalEmbedding(query);
-  if (!queryEmbedding) {
-    vscode.window.showErrorMessage('Search++: Failed to embed query.');
-    return [];
-  }
-
-  console.log('[Search++] Scoring matches...');
-  
-  // Debug count before filtering
-  console.log(`[Search++] Total chunks before filtering: ${embeddedChunks.length}`);
-  
-  const results = embeddedChunks
-    .filter(chunk => {
-      if (!exclusionPattern) return true;
-      const shouldExclude = shouldExcludeFile(chunk.filePath, exclusionPattern);
-      return !shouldExclude;
-    })
-    .map(chunk => {
-      return {
-        ...chunk,
-        score: cosineSimilarity(queryEmbedding, chunk.embedding)
-      };
-    })
-    .filter(result => result.score >= SIMILARITY_THRESHOLD) // Filter out low-quality matches
-    .filter(result => !isMinifiedCode(result.code)) // Exclude minified code
-    .sort((a, b) => b.score - a.score);
-
-  // Debug count after filtering
-  console.log(`[Search++] Chunks after exclusion filtering: ${results.length}`);
-  
-  // Limit results to those within 0.05 of the top result's score
-  const topScore = results.length > 0 ? results[0].score : 0;
-  const filteredResults = results.filter(result => result.score >= topScore - 0.08);
-
-  // Deduplicate results based on code content and file path
-  const deduplicatedResults = [];
-  const seenFingerprints = new Set<string>();
-
-  for (const result of filteredResults) {
-    const compositeKey = `${result.filePath}:${result.fingerprint}`;
-    if (!seenFingerprints.has(compositeKey)) {
-      seenFingerprints.add(compositeKey);
-      deduplicatedResults.push(result);
-
-      if (deduplicatedResults.length >= MAX_RESULTS) {
-        break;
-      }
+    if (!res.ok) {
+      const errorText = await res.text();
+      console.error(`[Search++] Search API error ${res.status}: ${errorText}`);
+      throw new Error(`[Search++] Failed to perform search: ${res.statusText}`);
     }
-  }
 
-  console.log(`[Search++] Top matches: ${deduplicatedResults.length}`);
-  return deduplicatedResults;
+    const data = (await res.json()) as { results: EmbeddedChunk[] };
+    let results: EmbeddedChunk[] = data.results;
+
+    // Apply exclusion pattern filtering
+    if (exclusionPattern) {
+      results = results.filter(chunk => !shouldExcludeFile(chunk.filePath, exclusionPattern));
+    }
+
+    console.log(`[Search++] Found ${results.length} matching chunks.`);
+    return results.slice(0, MAX_RESULTS); // Limit to max results
+  } catch (err) {
+    console.error(`[Search++] Error during search: ${err}`);
+    return [];
+  }
 }
 
 /**
@@ -171,28 +115,83 @@ export async function regenerateEmbeddings(exclusionPattern: string = ''): Promi
   if (!workspaceFolders) {
     throw new Error('No workspace folder open.');
   }
-  
-  const workspacePath = workspaceFolders[0].uri.fsPath;
-  const embeddingPath = path.join(workspacePath, EMBEDDING_FILE);
-  
+
   console.log('[Search++] Starting full re-indexing...');
-  
+
   // Ensure the server is ready
   const serverStarted = await startEmbeddingServer(global.extensionContext);
   if (!serverStarted) {
     throw new Error('Failed to start embedding server.');
   }
-  
-  // Delete existing embedding file if it exists
-  if (fs.existsSync(embeddingPath)) {
-    console.log(`[Search++] Removing existing embeddings file: ${embeddingPath}`);
-    fs.unlinkSync(embeddingPath);
+
+  // Re-index the workspace and collect documents
+  const documents: { document: string; metadata: any }[] = [];
+  const files = await vscode.workspace.findFiles(
+    '**/*', // Include all files
+    '**/{node_modules,.*}/**' // Exclude node_modules and hidden directories
+  );
+
+  for (const file of files) {
+    try {
+      const doc = await vscode.workspace.openTextDocument(file);
+      const fileExtension = path.extname(file.fsPath);
+
+      let symbols: FlattenedSymbol[] = [];
+      if (fileExtension === '.html') {
+        symbols = parseHTMLSymbols(doc);
+      } else {
+        const documentSymbols = await vscode.commands.executeCommand<vscode.DocumentSymbol[]>(
+          'vscode.executeDocumentSymbolProvider', file
+        );
+        if (!documentSymbols) continue;
+
+        const flatten = (symbols: vscode.DocumentSymbol[], parents: vscode.DocumentSymbol[] = []): FlattenedSymbol[] =>
+          symbols.flatMap(sym => [{ symbol: sym, parents }, ...flatten(sym.children, [...parents, sym])]);
+
+        symbols = flatten(documentSymbols).sort((a, b) =>
+          a.symbol.range.start.line - b.symbol.range.start.line
+        );
+      }
+
+      const nonOverlapping: FlattenedSymbol[] = [];
+      let lastEnd = -1;
+      for (const item of symbols) {
+        const { symbol } = item;
+        const start = symbol.range.start.line;
+        const end = symbol.range.end.line;
+        if (start >= lastEnd && !symbolIsTooSmall(symbol, doc)) {
+          nonOverlapping.push(item);
+          lastEnd = end;
+        }
+      }
+
+      for (const { symbol, parents } of nonOverlapping) {
+        const code = doc.getText(symbol.range);
+        const fingerprint = generateFingerprint(code);
+
+        documents.push({
+          document: code,
+          metadata: {
+            filePath: file.fsPath,
+            start_line: symbol.range.start.line,
+            end_line: symbol.range.end.line,
+            language: fileExtension.replace('.', ''),
+            kind: vscode.SymbolKind[symbol.kind],
+            name: symbol.name,
+            context: getSymbolContextWithParents(symbol, parents, doc)
+          }
+        });
+      }
+    } catch (err) {
+      console.warn(`[Search++] Failed to index ${file.fsPath}`, err);
+    }
   }
-  
-  // Pass empty string instead of API key since we don't need it anymore
-  const embeddedChunks = await indexWorkspace("");
-  
-  // Write the new embeddings to disk
-  fs.writeFileSync(embeddingPath, JSON.stringify(embeddedChunks, null, 2), 'utf-8');
-  console.log(`[Search++] Re-indexed and stored ${embeddedChunks.length} code chunks.`);
+
+  console.log(`[Search++] Collected ${documents.length} documents for re-embedding.`);
+  if (documents.length > 0) {
+    await updateFileEmbeddings(documents); // Send all documents to the backend
+    console.log('[Search++] Successfully re-embedded the entire workspace.');
+  } else {
+    console.log('[Search++] No documents to re-embed.');
+  }
 }

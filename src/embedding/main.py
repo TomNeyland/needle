@@ -6,9 +6,20 @@ import uvicorn
 import os
 from openai import AsyncOpenAI
 from typing import List
+from chromadb import Client
+import chromadb.utils.embedding_functions as embedding_functions
+import uuid  # Import the UUID module for generating unique IDs
+import math
+
+BATCH_SIZE = 10
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 client = AsyncOpenAI(api_key=OPENAI_API_KEY)
+
+openai_ef = embedding_functions.OpenAIEmbeddingFunction(
+                api_key=OPENAI_API_KEY,
+                model_name="text-embedding-3-small"
+)
 
 app = FastAPI()
 
@@ -25,8 +36,21 @@ else:
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     model.to(device)
 
+# Initialize ChromaDB client
+chroma_client = Client()
+collection_name = "code_embeddings"
+collection = chroma_client.get_or_create_collection(name=collection_name, embedding_function=openai_ef)
+
 class BatchCodeInput(BaseModel):
     codes: List[str]
+
+class FileEmbeddingInput(BaseModel):
+    documents: List[dict]  # Each document contains "document" and "metadata"
+
+class SearchQuery(BaseModel):
+    query: str
+    max_results: int = 15
+    similarity_threshold: float = 0.2
 
 @app.get("/healthz")
 def health_check():
@@ -65,6 +89,75 @@ async def embed_code_batch(input: BatchCodeInput):
         embeddings.append(embedding)
 
     return {"embeddings": embeddings}
+
+@app.post("/update_file_embeddings")
+async def update_file_embeddings(input: FileEmbeddingInput):
+    try:
+        # Extract unique metadata keys and values from incoming documents
+        metadata_filters = [
+            {key: doc["metadata"][key] for key in ('filePath',)}
+            for doc in input.documents
+        ]
+
+        # Clear existing embeddings for all provided metadata filters
+        for metadata_filter in metadata_filters:
+            collection.delete(where=metadata_filter)
+
+        # Prepare data for a single batch call
+        ids = [str(uuid.uuid4().hex) for _ in input.documents]
+        documents = [doc["document"] for doc in input.documents]
+        metadatas = [doc["metadata"] for doc in input.documents]
+
+        # Process in batches of BATCH_SIZE
+        total_docs = len(input.documents)
+        total_batches = math.ceil(total_docs / BATCH_SIZE)
+        
+        for i in range(total_batches):
+            start_idx = i * BATCH_SIZE
+            end_idx = min((i + 1) * BATCH_SIZE, total_docs)
+            
+            # Add current batch
+            collection.add(
+                ids=ids[start_idx:end_idx],
+                documents=documents[start_idx:end_idx],
+                metadatas=metadatas[start_idx:end_idx]
+            )
+
+        return {"status": "success", "message": f"Updated embeddings for {len(input.documents)} documents"}
+    except Exception as e:
+        print("[ERROR] ChromaDB error:", str(e))
+        raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
+
+@app.post("/search")
+async def search_embeddings(input: SearchQuery):
+    try:
+        # Perform the search in ChromaDB
+        results = collection.query(
+            query_texts=[input.query],
+            n_results=input.max_results
+        )
+
+        # Filter results based on similarity threshold
+        filtered_results = []
+        print("dsitaincessesss", results["distances"])
+        for doc, metadata, distance in zip(results["documents"], results["metadatas"], results["distances"]):
+            print(f"Distance: {distance}")
+            similarity = 1 - distance  # Convert distance to similarity
+            if similarity >= input.similarity_threshold:
+                filtered_results.append({
+                    "embedding": [],  # Embedding is not returned for search results
+                    "code": doc,
+                    "filePath": metadata["filePath"],
+                    "lineStart": metadata["start_line"],
+                    "lineEnd": metadata["end_line"],
+                    "fingerprint": metadata.get("fingerprint", ""),
+                    "context": metadata.get("context", "")
+                })
+
+        return {"results": filtered_results}
+    except Exception as e:
+        print("[ERROR] ChromaDB search error:", str(e))
+        raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
 
 if __name__ == "__main__":
     uvicorn.run(app, host="127.0.0.1", port=8000)
