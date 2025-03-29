@@ -59,6 +59,21 @@ export async function startEmbeddingServer(context: vscode.ExtensionContext): Pr
       isWindows ? 'python.exe' : 'python'
     );
 
+    // Check and install requirements if necessary
+    try {
+      const requirementsInstalled = await checkRequirementsInstalled(pythonExecutable);
+      if (!requirementsInstalled) {
+        console.log('[Search++] Requirements not found. Installing...');
+        await installRequirements(pythonExecutable, requirementsPath);
+      } else {
+        console.log('[Search++] All requirements are already installed.');
+      }
+    } catch (err) {
+      console.error('[Search++] Failed to check or install requirements:', err);
+      vscode.window.showErrorMessage('Search++: Failed to install Python dependencies. Please check the logs for details.');
+      return resolve(false);
+    }
+
     // Start the Python server with proper environment variables
     console.log(`[Search++] Using Python at: ${pythonExecutable}`);
     console.log(`[Search++] Running script: ${scriptPath}`);

@@ -65,17 +65,68 @@ export function getSymbolContextWithParents(
   return context;
 }
 
+/**
+ * Determines if a code chunk is minified based on its density.
+ * @param code The code chunk to evaluate.
+ * @returns True if the code is minified, false otherwise.
+ */
+export function isMinifiedCode(code: string): boolean {
+  const lines = code.split('\n').length;
+  const nonWhitespaceChars = code.replace(/\s/g, '').length;
+  const density = nonWhitespaceChars / lines;
+  return density > 300; // Adjust threshold as needed
+}
+
+/**
+ * Splits a large class definition into smaller chunks based on its methods.
+ * @param symbol The class symbol to split.
+ * @param doc The document containing the class.
+ * @returns An array of smaller symbols representing parts of the class.
+ */
+export function splitLargeClass(symbol: vscode.DocumentSymbol, doc: vscode.TextDocument): vscode.DocumentSymbol[] {
+  if (symbol.kind !== vscode.SymbolKind.Class) {
+    return [symbol]; // Not a class, return as-is
+  }
+
+  const size = symbol.range.end.line - symbol.range.start.line + 1;
+  if (size <= 100) {
+    return [symbol]; // Small enough, no need to split
+  }
+
+  console.log(`[Search++] Splitting large class: ${symbol.name} - ${size} lines`);
+
+  // Extract methods and other significant children
+  const significantChildren = symbol.children.filter(child =>
+    child.kind === vscode.SymbolKind.Method || child.kind === vscode.SymbolKind.Constructor
+  );
+
+  if (significantChildren.length === 0) {
+    return [symbol]; // No significant children, return as-is
+  }
+
+  return significantChildren.map(child => {
+    const newSymbol = new vscode.DocumentSymbol(
+      `${symbol.name}.${child.name}`, // Include parent class name
+      child.detail,
+      child.kind,
+      child.range,
+      child.selectionRange
+    );
+    newSymbol.children = child.children; // Preserve any nested children
+    return newSymbol;
+  });
+}
+
 export function symbolIsTooSmall(symbol: vscode.DocumentSymbol, doc: vscode.TextDocument): boolean {
   const kind = symbol.kind;
   const name = symbol.name;
   const size = symbol.range.end.line - symbol.range.start.line + 1;
 
-  // For classes, only include if they're not too large
-  // This prevents giant classes from being embedded in their entirety
+  // For classes, split large ones into smaller chunks
   if (kind === vscode.SymbolKind.Class) {
     if (size > 100) {
       console.log(`[Search++] Skipping large class: ${name} - ${size} lines`);
-      return true;
+      return true; // Skip the entire class if not split
     }
     return false; // Include smaller classes
   }
@@ -114,7 +165,7 @@ export function symbolIsTooSmall(symbol: vscode.DocumentSymbol, doc: vscode.Text
 
   // Skip any non-important tiny symbols
   if (size < 3) {
-    console.log(`[Search++] Skipping small symbol: ${name} (${vscode.SymbolKind[kind]}) - ${size} lines`);
+    // console.log(`[Search++] Skipping small symbol: ${name} (${vscode.SymbolKind[kind]}) - ${size} lines`);
     return true;
   }
 

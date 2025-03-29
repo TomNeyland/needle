@@ -9,6 +9,20 @@ import { startEmbeddingServer } from '../embedding/server';
 import { global } from '../extension';
 
 const EMBEDDING_FILE = 'searchpp.embeddings.json';
+const SIMILARITY_THRESHOLD = 0.2; // Only consider results with a score above this threshold
+const MAX_RESULTS = 15; // Maximum number of results to return
+
+/**
+ * Determines if a code chunk is minified based on its density.
+ * @param code The code chunk to evaluate.
+ * @returns True if the code is minified, false otherwise.
+ */
+function isMinifiedCode(code: string): boolean {
+  const lines = code.split('\n').length;
+  const nonWhitespaceChars = code.replace(/\s/g, '').length;
+  const density = nonWhitespaceChars / lines;
+  return density > 300; // Adjust threshold as needed
+}
 
 /**
  * Performs semantic search based on a query and returns matching code chunks
@@ -59,22 +73,25 @@ export async function performSearch(query: string): Promise<EmbeddedChunk[]> {
       ...chunk,
       score: cosineSimilarity(queryEmbedding, chunk.embedding)
     };
-  }).sort((a, b) => b.score - a.score);
-  
+  }).filter(result => result.score >= SIMILARITY_THRESHOLD) // Filter out low-quality matches
+    .filter(result => !isMinifiedCode(result.code)) // Exclude minified code
+    .sort((a, b) => b.score - a.score);
+
+  // Limit results to those within 0.05 of the top result's score
+  const topScore = results.length > 0 ? results[0].score : 0;
+  const filteredResults = results.filter(result => result.score >= topScore - 0.08);
+
   // Deduplicate results based on code content and file path
   const deduplicatedResults = [];
   const seenFingerprints = new Set<string>();
-  
-  for (const result of results) {
-    // Create a composite key of file path + fingerprint
+
+  for (const result of filteredResults) {
     const compositeKey = `${result.filePath}:${result.fingerprint}`;
-    
     if (!seenFingerprints.has(compositeKey)) {
       seenFingerprints.add(compositeKey);
       deduplicatedResults.push(result);
-      
-      // Only take the first 15 deduplicated results
-      if (deduplicatedResults.length >= 15) {
+
+      if (deduplicatedResults.length >= MAX_RESULTS) {
         break;
       }
     }
