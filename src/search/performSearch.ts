@@ -2,13 +2,14 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
-import { EmbeddedChunk, parseHTMLSymbols, symbolIsTooSmall, generateFingerprint, getSymbolContextWithParents } from '../utils/embeddingUtils';
+import { EmbeddedChunk, parseHTMLSymbols, symbolIsTooSmall, generateFingerprint, getSymbolContextWithParents, extractCenteredCode } from '../utils/embeddingUtils';
 import { updateFileEmbeddings, FlattenedSymbol } from '../embedding/indexer';
 import { startEmbeddingServer } from '../embedding/server';
 import { global } from '../extension';
 
 const SIMILARITY_THRESHOLD = 0.2; // Only consider results with a score above this threshold
 const MAX_RESULTS = 15; // Maximum number of results to return
+const MAX_CODE_CHUNK_SIZE = 1000; // Maximum characters allowed in a code chunk
 
 /**
  * Determines if a code chunk is minified based on its density.
@@ -166,7 +167,7 @@ export async function regenerateEmbeddings(exclusionPattern: string = ''): Promi
       }
 
       for (const { symbol, parents } of nonOverlapping) {
-        const code = doc.getText(symbol.range);
+        const code = extractCenteredCode(doc, symbol.range, MAX_CODE_CHUNK_SIZE);
         const fingerprint = generateFingerprint(code);
 
         documents.push({

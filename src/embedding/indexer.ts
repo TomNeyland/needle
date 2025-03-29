@@ -1,11 +1,12 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
-import { getSymbolContextWithParents, generateFingerprint, symbolIsTooSmall, EmbeddedChunk, parseHTMLSymbols } from '../utils/embeddingUtils';
+import { getSymbolContextWithParents, generateFingerprint, symbolIsTooSmall, EmbeddedChunk, parseHTMLSymbols, extractCenteredCode } from '../utils/embeddingUtils';
 import { startEmbeddingServer } from './server';
 import { global } from '../extension';
 
 const EMBEDDING_FILE = 'searchpp.embeddings.json';
+const MAX_CODE_CHUNK_SIZE = 1000; // Maximum characters allowed in a code chunk
 
 function isFileInAHiddenFolder(filePath: string): boolean {
   const segments = filePath.split(path.sep);
@@ -114,7 +115,7 @@ export async function indexWorkspace(apiKey: string): Promise<void> {
       }
 
       for (const { symbol, parents } of nonOverlapping) {
-        const code = doc.getText(symbol.range);
+        const code = extractCenteredCode(doc, symbol.range, MAX_CODE_CHUNK_SIZE);
         const fingerprint = generateFingerprint(code);
         if (processedFingerprints.has(fingerprint)) continue;
         processedFingerprints.add(fingerprint);
@@ -183,7 +184,7 @@ export function setupFileWatcher(context: vscode.ExtensionContext): void {
 
     const documents: { document: string; metadata: any }[] = [];
     for (const { symbol, parents } of nonOverlapping) {
-      const code = doc.getText(symbol.range);
+      const code = extractCenteredCode(doc, symbol.range, MAX_CODE_CHUNK_SIZE);
       const fingerprint = generateFingerprint(code);
 
       documents.push({

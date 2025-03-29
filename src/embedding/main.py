@@ -11,7 +11,7 @@ import chromadb.utils.embedding_functions as embedding_functions
 import uuid  # Import the UUID module for generating unique IDs
 import math
 
-BATCH_SIZE = 10
+BATCH_SIZE = 100
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
 client = AsyncOpenAI(api_key=OPENAI_API_KEY)
@@ -139,10 +139,9 @@ async def search_embeddings(input: SearchQuery):
 
         # Filter results based on similarity threshold
         filtered_results = []
-        print("dsitaincessesss", results["distances"])
-        for doc, metadata, distance in zip(results["documents"], results["metadatas"], results["distances"]):
-            print(f"Distance: {distance}")
-            similarity = 1 - distance  # Convert distance to similarity
+        for doc, metadata, distance in zip(results["documents"][0], results["metadatas"][0], results["distances"][0]):
+            # Normalize similarity to range [0, 1] where 1 is identical and 0 is not similar
+            similarity = 1 - (distance / 2)
             if similarity >= input.similarity_threshold:
                 filtered_results.append({
                     "embedding": [],  # Embedding is not returned for search results
@@ -151,7 +150,8 @@ async def search_embeddings(input: SearchQuery):
                     "lineStart": metadata["start_line"],
                     "lineEnd": metadata["end_line"],
                     "fingerprint": metadata.get("fingerprint", ""),
-                    "context": metadata.get("context", "")
+                    "context": metadata.get("context", ""),
+                    "score": similarity  # Rename field to 'score' for UI compatibility
                 })
 
         return {"results": filtered_results}

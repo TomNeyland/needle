@@ -88,8 +88,8 @@ export async function startEmbeddingServer(context: vscode.ExtensionContext): Pr
         SERVER_URL: SERVER_URL,
         UVICORN_WORKERS: "15",
         DEBUG: "*",
-        LOG_LEVEL: "DEBUG",
-        OPENAI_LOG: "debug",
+        // LOG_LEVEL: "DEBUG",
+        // OPENAI_LOG: "debug",
       }
     });
 

@@ -138,7 +138,7 @@ export function symbolIsTooSmall(symbol: vscode.DocumentSymbol, doc: vscode.Text
   // For classes, split large ones into smaller chunks
   if (kind === vscode.SymbolKind.Class) {
     if (size > 100) {
-      console.log(`[Search++] Skipping large class: ${name} - ${size} lines`);
+      console.debug(`[Search++] Skipping large class: ${name} - ${size} lines`);
       return true; // Skip the entire class if not split
     }
     return false; // Include smaller classes
@@ -154,13 +154,13 @@ export function symbolIsTooSmall(symbol: vscode.DocumentSymbol, doc: vscode.Text
   }
 
   // Filter out individual methods from classes unless they're large enough to be significant
-  if (
-    kind === vscode.SymbolKind.Method && 
-    size < 15 // Increased threshold to filter out more methods
-  ) {
-    console.log(`[Search++] Skipping class method: ${name} - ${size} lines`);
-    return true;
-  }
+  // if (
+  //   kind === vscode.SymbolKind.Method && 
+  //   size < 15 // Increased threshold to filter out more methods
+  // ) {
+  //   console.log(`[Search++] Skipping class method: ${name} - ${size} lines`);
+  //   return true;
+  // }
 
   // 🔥 Skip tiny variable *symbols* (not code) — e.g., just `path`
   if (
@@ -171,7 +171,7 @@ export function symbolIsTooSmall(symbol: vscode.DocumentSymbol, doc: vscode.Text
     const text = doc.getText(symbol.selectionRange).trim();
     // if the selected text is a single identifier (no `=` or `:` or keyword), skip it
     if (/^[a-zA-Z_$][\w$]*$/.test(text)) {
-      console.log(`[Search++] Skipping trivial variable symbol: "${text}"`);
+      // console.debug(`[Search++] Skipping trivial variable symbol: "${text}"`);
       return true;
     }
   }
@@ -282,4 +282,42 @@ export function parseHTMLSymbols(doc: vscode.TextDocument): { symbol: vscode.Doc
   
   console.log(`[Search++] Found ${result.length} HTML symbols`);
   return result;
+}
+
+/**
+ * Extracts a portion of code from the document centered around the symbol range,
+ * limiting to a maximum size.
+ * @param doc The text document containing the code
+ * @param symbolRange The range of the symbol in the document
+ * @param maxSize Maximum character length of the extracted code
+ * @returns A string containing the extracted code
+ */
+export function extractCenteredCode(doc: vscode.TextDocument, symbolRange: vscode.Range, maxSize: number): string {
+  const code = doc.getText(symbolRange);
+  
+  if (code.length <= maxSize) {
+    return code; // Return the entire code if it's within the size limit
+  }
+  
+  // Calculate the center offset in the original code
+  const centerOffset = Math.floor(code.length / 2);
+  
+  // Calculate start and end positions to extract centered code
+  const halfMaxSize = Math.floor(maxSize / 2);
+  let start = centerOffset - halfMaxSize;
+  let end = centerOffset + halfMaxSize;
+  
+  // Adjust if we're at the edges
+  if (start < 0) {
+    end += Math.abs(start); // Shift the end right if start is negative
+    start = 0;
+  }
+  
+  if (end > code.length) {
+    start = Math.max(0, start - (end - code.length)); // Shift start left if end is beyond bounds
+    end = code.length;
+  }
+  
+  // Extract the centered portion
+  return code.substring(start, end);
 }
