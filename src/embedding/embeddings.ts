@@ -14,31 +14,27 @@ let serverReady = false;
  * Gets an embedding from the local embedding server
  */
 export async function getLocalEmbedding(text: string): Promise<number[] | null> {
-  if (!serverReady) {
-    const started = await startEmbeddingServer(global.extensionContext);
-    if (!started) {
-      console.error('[Search++] Failed to start embedding server');
-      return null;
-    }
-    serverReady = true;
-  }
-  
   try {
-    console.log(`[Search++] Sending embedding request to local server for text (length: ${text.length})`);
-    const res = await fetch(`${SERVER_URL}/embed`, {
+    const response = await fetch('http://localhost:8000/embed', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ code: text })
+      body: JSON.stringify({ codes: [text] }) // 🔥 wrap input as batch
     });
-    
-    const data = await res.json() as any;
-    console.log('[Search++] Received embedding response from local server');
-    return data?.embedding || null;
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.error(`[Search++] Embedding error: ${response.status} - ${errorText}`);
+      return null;
+    }
+
+    const data = await response.json() as { embeddings: number[][] };
+    return data.embeddings[0]; // 🔥 return the first embedding from the array
   } catch (err) {
-    console.error('[Search++] Local embedding error:', err);
+    console.error('[Search++] Failed to embed query:', err);
     return null;
   }
 }
+
 
 /**
  * Gets an embedding for text - uses local embedding server

@@ -20,7 +20,7 @@ export default [{
             format: ["camelCase", "PascalCase"],
         }],
 
-        curly: "warn",
+        curly: "off", // Changed from "warn" to "off" to allow omitting braces
         eqeqeq: "warn",
         "no-throw-literal": "warn",
         semi: "warn",
