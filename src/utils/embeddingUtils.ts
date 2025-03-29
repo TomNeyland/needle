@@ -70,14 +70,32 @@ export function symbolIsTooSmall(symbol: vscode.DocumentSymbol, doc: vscode.Text
   const name = symbol.name;
   const size = symbol.range.end.line - symbol.range.start.line + 1;
 
-  // Always include high-value symbols
+  // For classes, only include if they're not too large
+  // This prevents giant classes from being embedded in their entirety
+  if (kind === vscode.SymbolKind.Class) {
+    if (size > 100) {
+      console.log(`[Search++] Skipping large class: ${name} - ${size} lines`);
+      return true;
+    }
+    return false; // Include smaller classes
+  }
+  
+  // Always include constructors
   if (
-    kind === vscode.SymbolKind.Class ||
     kind === vscode.SymbolKind.Constructor ||
     name.toLowerCase().includes('__init__') ||
     name.toLowerCase().includes('constructor')
   ) {
     return false;
+  }
+
+  // Filter out individual methods from classes unless they're large enough to be significant
+  if (
+    kind === vscode.SymbolKind.Method && 
+    size < 15 // Increased threshold to filter out more methods
+  ) {
+    console.log(`[Search++] Skipping class method: ${name} - ${size} lines`);
+    return true;
   }
 
   // 🔥 Skip tiny variable *symbols* (not code) — e.g., just `path`
@@ -94,7 +112,7 @@ export function symbolIsTooSmall(symbol: vscode.DocumentSymbol, doc: vscode.Text
     }
   }
 
-  // Optional: skip any non-important tiny symbols
+  // Skip any non-important tiny symbols
   if (size < 3) {
     console.log(`[Search++] Skipping small symbol: ${name} (${vscode.SymbolKind[kind]}) - ${size} lines`);
     return true;
@@ -102,4 +120,3 @@ export function symbolIsTooSmall(symbol: vscode.DocumentSymbol, doc: vscode.Text
 
   return false;
 }
-
