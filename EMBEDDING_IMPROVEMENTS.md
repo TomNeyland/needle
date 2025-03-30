@@ -15,110 +15,48 @@ Currently, Search++ uses:
 
 ### Short-term Improvements (1-2 weeks)
 
-- **Comment Integration**
-  - Extract docstrings and comments above functions/classes
-  - Include JSDoc/TSDoc parameters and return type descriptions
-  - Add file-level comments and license information
+- **LSP-based Context Extraction**
+  - Use LSP's `DocumentSymbol` API to extract hierarchical context (e.g., class > method > block).
+  - Extract comments and docstrings near symbols using LSP-provided ranges.
+  - Include type annotations, parameter names, and return types from LSP's `Hover` or `SignatureHelp` APIs.
+  - Add file-level metadata (e.g., file paths, module names).
 
-```typescript
-// Example implementation for comment extraction
-function getDocComments(symbol: vscode.DocumentSymbol, doc: vscode.TextDocument): string {
-  const startLine = Math.max(0, symbol.range.start.line - 10);
-  const commentLines = [];
-  
-  for (let i = startLine; i < symbol.range.start.line; i++) {
-    const line = doc.lineAt(i).text.trim();
-    if (line.startsWith('/*') || line.startsWith('*') || 
-        line.startsWith('//') || line.startsWith('#')) {
-      commentLines.push(line);
-    } else if (commentLines.length > 0 && line === '') {
-      // Keep empty lines between comments
-      commentLines.push('');
-    } else if (commentLines.length > 0) {
-      // Stop when we hit non-comment, non-empty lines after comments
-      break;
-    }
-  }
-  
-  return commentLines.join('\n');
-}
-```
+- **Cross-file Relationships**
+  - Use LSP's `References` API to track function calls and inheritance.
+  - Include caller/callee relationships and dependency graphs.
 
-- **Semantic Code Structure**
-  - Include function parameters and types in context
-  - Add information about imports and dependencies
-  - Extract class inheritance and interface implementation
+- **Intelligent Context Selection**
+  - Focus on relevant symbols and their immediate parents/children.
+  - Skip unrelated symbols or overly verbose comments to avoid washing out the subject.
 
 ### Medium-term Improvements (1-2 months)
 
-- **Cross-reference Integration**
-  - Track function calls between files
-  - Include caller/callee relationships
-  - Add dependency graphs for functions/classes
+- **Framework-specific Enhancements**
+  - Use LSP to extract React component props, hooks, and Angular service relationships.
+  - Extract backend API route handlers and middleware relationships.
 
-- **Framework-specific Context**
-  - Specialized handling for React components (props, hooks)
-  - Angular service/component relationships
-  - Backend API routes and handlers
+- **Metadata Enrichment**
+  - Add symbol-specific metadata like visibility (public/private), inheritance, and annotations.
+  - Include language-specific metadata (e.g., package.json for Node.js).
 
 ## 2. Chunking Strategy Improvements
 
 ### Short-term Improvements
 
-- **Intelligent Chunking**
-  - Split large files into semantic units rather than arbitrary chunks
-  - Ensure each chunk maintains sufficient context
-  - Balance chunk size with meaningful boundaries
+- **Semantic Chunking**
+  - Use LSP to identify logical boundaries (e.g., functions, classes) for chunking.
+  - Implement a sliding window with overlap to ensure no context is lost between chunks.
 
-```typescript
-// Example implementation for improved chunking
-function tokenAwareChunking(code: string, maxTokens: number = 512): string[] {
-  // Approximate tokens (very rough estimate for prototyping)
-  const estimatedTokens = code.length / 4;
-  
-  if (estimatedTokens <= maxTokens) {
-    return [code];
-  }
-  
-  // Find logical boundaries (functions, blocks)
-  const chunks = [];
-  const lines = code.split('\n');
-  let currentChunk = [];
-  let currentTokens = 0;
-  
-  for (const line of lines) {
-    const lineTokens = line.length / 4;
-    
-    if (currentTokens + lineTokens > maxTokens && currentChunk.length > 0) {
-      // Finish current chunk if adding this line would exceed max tokens
-      chunks.push(currentChunk.join('\n'));
-      currentChunk = [];
-      currentTokens = 0;
-    }
-    
-    currentChunk.push(line);
-    currentTokens += lineTokens;
-  }
-  
-  if (currentChunk.length > 0) {
-    chunks.push(currentChunk.join('\n'));
-  }
-  
-  return chunks;
-}
-```
+- **Token-aware Processing**
+  - Add precise token counting for embedding models.
+  - Balance chunk size with meaningful boundaries.
 
 ### Medium-term Improvements
 
-- **Token-aware Processing**
-  - Add precise token counting for embedding models
-  - Implement sliding window with overlap for contexts
-  - Ensure optimal token utilization for embedding models
-
 - **Hierarchical Chunking**
-  - Generate embeddings at multiple granularities (file, class, method, block)
-  - Enable multi-level search (find relevant files, then drill down)
-  - Implement parent-child relationships in vector store
+  - Generate embeddings at multiple granularities (file, class, method, block).
+  - Enable multi-level search (find relevant files, then drill down).
+  - Implement parent-child relationships in vector store.
 
 ## 3. Embedding Provider Enhancements
 
@@ -189,17 +127,17 @@ def search_with_metadata(query, filters=None):
 
 ### Phase 1: Contextual Enrichment (Weeks 1-2)
 
-1. Enhance `getSymbolContextWithParents` to include comments
-2. Add type information extraction to context
-3. Improve language-specific context handling
-4. Add tests for context extraction
+1. Enhance `getSymbolContextWithParents` to use LSP for hierarchical context extraction.
+2. Add type information extraction using LSP's `Hover` or `SignatureHelp` APIs.
+3. Use LSP's `References` API to include cross-file relationships.
+4. Add tests for LSP-based context extraction.
 
 ### Phase 2: Chunking Improvements (Weeks 3-4)
 
-1. Implement token counting utilities
-2. Add intelligent chunk boundary detection
-3. Refactor indexing to support overlapping chunks
-4. Optimize embedding batch sizes
+1. Implement token-aware chunking with LSP-based boundaries.
+2. Add sliding window with overlap for chunking.
+3. Refactor indexing to support hierarchical embeddings.
+4. Optimize embedding batch sizes.
 
 ### Phase 3: Multiple Model Support (Weeks 5-6)
 
