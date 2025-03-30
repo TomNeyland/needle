@@ -1,6 +1,8 @@
 // src/commands.ts
 import * as vscode from 'vscode';
-import { performSearch, regenerateEmbeddings } from '../search/performSearch';
+import { performSearch } from '../search/performSearch';
+import { regenerateEmbeddings } from '../embedding/regenerator';
+import { getOpenAIKey } from '../utils/configUtils';
 
 export function registerCommands(context: vscode.ExtensionContext) {
   // Register the command to set the API key
@@ -52,29 +54,4 @@ export function registerCommands(context: vscode.ExtensionContext) {
   });
 
   context.subscriptions.push(performSearchCommand);
-}
-
-// Function to get API key from global state or environment
-export async function getOpenAIKey(context: vscode.ExtensionContext): Promise<string | undefined> {
-  // First check the context's global state
-  const apiKey = context.globalState.get<string>('searchpp.openaiApiKey');
-  
-  // Then check environment variable as fallback
-  const envApiKey = process.env.OPENAI_API_KEY;
-  
-  if (!apiKey && !envApiKey) {
-    const response = await vscode.window.showInformationMessage(
-      'Search++: OpenAI API Key is required for semantic search.',
-      'Set API Key',
-      'Cancel'
-    );
-    
-    if (response === 'Set API Key') {
-      return vscode.commands.executeCommand('searchpp.setApiKey');
-    }
-    
-    return undefined;
-  }
-  
-  return apiKey || envApiKey;
 }

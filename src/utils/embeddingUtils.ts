@@ -47,7 +47,6 @@ export function getSymbolContextWithParents(
 
   const names = filteredParents.map(s => s.name);
   names.push(symbol.name);
-  const firstLine = doc.lineAt(symbol.range.start.line).text.trim();
 
   const docRangeStart = Math.max(symbol.range.start.line - 3, 0);
   const contextLines = doc.getText(
@@ -90,12 +89,6 @@ export function isMinifiedCode(code: string): boolean {
   return density > 300; // Adjust threshold as needed
 }
 
-/**
- * Splits a large class definition into smaller chunks based on its methods.
- * @param symbol The class symbol to split.
- * @param doc The document containing the class.
- * @returns An array of smaller symbols representing parts of the class.
- */
 export function splitLargeClass(symbol: vscode.DocumentSymbol, doc: vscode.TextDocument): vscode.DocumentSymbol[] {
   if (symbol.kind !== vscode.SymbolKind.Class) {
     return [symbol]; // Not a class, return as-is
@@ -105,8 +98,6 @@ export function splitLargeClass(symbol: vscode.DocumentSymbol, doc: vscode.TextD
   if (size <= 100) {
     return [symbol]; // Small enough, no need to split
   }
-
-  console.log(`[Search++] Splitting large class: ${symbol.name} - ${size} lines`);
 
   // Extract methods and other significant children
   const significantChildren = symbol.children.filter(child =>
@@ -138,7 +129,6 @@ export function symbolIsTooSmall(symbol: vscode.DocumentSymbol, doc: vscode.Text
   // For classes, split large ones into smaller chunks
   if (kind === vscode.SymbolKind.Class) {
     if (size > 100) {
-      console.debug(`[Search++] Skipping large class: ${name} - ${size} lines`);
       return true; // Skip the entire class if not split
     }
     return false; // Include smaller classes
@@ -153,16 +143,7 @@ export function symbolIsTooSmall(symbol: vscode.DocumentSymbol, doc: vscode.Text
     return false;
   }
 
-  // Filter out individual methods from classes unless they're large enough to be significant
-  // if (
-  //   kind === vscode.SymbolKind.Method && 
-  //   size < 15 // Increased threshold to filter out more methods
-  // ) {
-  //   console.log(`[Search++] Skipping class method: ${name} - ${size} lines`);
-  //   return true;
-  // }
-
-  // 🔥 Skip tiny variable *symbols* (not code) — e.g., just `path`
+  // Skip tiny variable *symbols* (not code) — e.g., just `path`
   if (
     kind === vscode.SymbolKind.Variable &&
     size === 1 &&
@@ -171,32 +152,22 @@ export function symbolIsTooSmall(symbol: vscode.DocumentSymbol, doc: vscode.Text
     const text = doc.getText(symbol.selectionRange).trim();
     // if the selected text is a single identifier (no `=` or `:` or keyword), skip it
     if (/^[a-zA-Z_$][\w$]*$/.test(text)) {
-      // console.debug(`[Search++] Skipping trivial variable symbol: "${text}"`);
       return true;
     }
   }
 
   // Skip any non-important tiny symbols
   if (size < 3) {
-    // console.log(`[Search++] Skipping small symbol: ${name} (${vscode.SymbolKind[kind]}) - ${size} lines`);
     return true;
   }
 
   return false;
 }
 
-/**
- * Parses an HTML document and extracts symbols (tags and attributes).
- * @param doc The HTML document to parse.
- * @returns An array of FlattenedSymbol objects representing HTML elements.
- */
 export function parseHTMLSymbols(doc: vscode.TextDocument): { symbol: vscode.DocumentSymbol; parents: vscode.DocumentSymbol[] }[] {
   const content = doc.getText();
   const dom = parseDocument(content);
   const result: { symbol: vscode.DocumentSymbol; parents: vscode.DocumentSymbol[] }[] = [];
-  
-  // Map to store parent-child relationships
-  const symbolMap = new Map<any, vscode.DocumentSymbol>();
   
   // Helper function to recursively traverse DOM nodes
   function traverseNode(node: any, parents: vscode.DocumentSymbol[] = []): void {
@@ -211,59 +182,52 @@ export function parseHTMLSymbols(doc: vscode.TextDocument): { symbol: vscode.Doc
         return;
       }
       
-      try {
-        // Convert offsets to VSCode positions
-        const startPos = doc.positionAt(startOffset);
-        const endPos = doc.positionAt(endOffset);
-        
-        // Create a range for this element
-        const range = new vscode.Range(startPos, endPos);
-        
-        // Create a name with tag and important attributes (like id, class)
-        let name = node.name || 'unknown';
-        let detail = '';
-        
-        // Add attributes to the detail
-        if (node.attribs) {
-          const attrs = Object.entries(node.attribs);
-          if (attrs.length > 0) {
-            detail = attrs.map(([key, value]) => `${key}="${value}"`).join(' ');
-            
-            // Add id to name if available
-            if (node.attribs.id) {
-              name += `#${node.attribs.id}`;
-            }
-            // Add class to name if available
-            if (node.attribs.class) {
-              name += `.${node.attribs.class.replace(/\s+/g, '.')}`;
-            }
+      // Convert offsets to VSCode positions
+      const startPos = doc.positionAt(startOffset);
+      const endPos = doc.positionAt(endOffset);
+      
+      // Create a range for this element
+      const range = new vscode.Range(startPos, endPos);
+      
+      // Create a name with tag and important attributes (like id, class)
+      let name = node.name || 'unknown';
+      let detail = '';
+      
+      // Add attributes to the detail
+      if (node.attribs) {
+        const attrs = Object.entries(node.attribs);
+        if (attrs.length > 0) {
+          detail = attrs.map(([key, value]) => `${key}="${value}"`).join(' ');
+          
+          // Add id to name if available
+          if (node.attribs.id) {
+            name += `#${node.attribs.id}`;
+          }
+          // Add class to name if available
+          if (node.attribs.class) {
+            name += `.${node.attribs.class.replace(/\s+/g, '.')}`;
           }
         }
-        
-        // Create symbol for this element
-        const symbol = new vscode.DocumentSymbol(
-          name,
-          detail,
-          vscode.SymbolKind.Field,
-          range,
-          range
-        );
-        
-        // Store the relationship between DOM node and symbol
-        symbolMap.set(node, symbol);
-        
-        // Add this symbol to the result with its parent hierarchy
-        result.push({ symbol, parents });
-        
-        // Process children
-        if (node.children && node.children.length > 0) {
-          const newParents = [...parents, symbol];
-          for (const child of node.children) {
-            traverseNode(child, newParents);
-          }
+      }
+      
+      // Create symbol for this element
+      const symbol = new vscode.DocumentSymbol(
+        name,
+        detail,
+        vscode.SymbolKind.Field,
+        range,
+        range
+      );
+      
+      // Add this symbol to the result with its parent hierarchy
+      result.push({ symbol, parents });
+      
+      // Process children
+      if (node.children && node.children.length > 0) {
+        const newParents = [...parents, symbol];
+        for (const child of node.children) {
+          traverseNode(child, newParents);
         }
-      } catch (err) {
-        console.warn(`[Search++] Error processing HTML node: ${err}`);
       }
     } else if (node.children && node.children.length > 0) {
       // For non-element nodes with children (like document), just process children
@@ -280,18 +244,9 @@ export function parseHTMLSymbols(doc: vscode.TextDocument): { symbol: vscode.Doc
     }
   }
   
-  console.log(`[Search++] Found ${result.length} HTML symbols`);
   return result;
 }
 
-/**
- * Extracts a portion of code from the document centered around the symbol range,
- * limiting to a maximum size.
- * @param doc The text document containing the code
- * @param symbolRange The range of the symbol in the document
- * @param maxSize Maximum character length of the extracted code
- * @returns A string containing the extracted code
- */
 export function extractCenteredCode(doc: vscode.TextDocument, symbolRange: vscode.Range, maxSize: number): string {
   const code = doc.getText(symbolRange);
   
