@@ -20,3 +20,7 @@ export async function getOpenAIKey(context: vscode.ExtensionContext): Promise<st
 
   return apiKey || envApiKey;
 }
+
+export function isWorkspaceReady(): boolean {
+  return vscode.workspace.workspaceFolders !== undefined && vscode.workspace.workspaceFolders.length > 0;
+}

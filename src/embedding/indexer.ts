@@ -1,23 +1,12 @@
 import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
-import { getSymbolContextWithParents, generateFingerprint, symbolIsTooSmall, EmbeddedChunk, parseHTMLSymbols, extractCenteredCode } from '../utils/embeddingUtils';
+import { getSymbolContextWithParents, generateFingerprint, symbolIsTooSmall, EmbeddedChunk, parseHTMLSymbols, extractCenteredCode, collectDocumentsFromWorkspace } from '../utils/embeddingUtils';
 import { startEmbeddingServer } from './server';
 import { global } from '../extension';
 
 const EMBEDDING_FILE = 'searchpp.embeddings.json';
 const MAX_CODE_CHUNK_SIZE = 1000; // Maximum characters allowed in a code chunk
-
-function isFileInAHiddenFolder(filePath: string): boolean {
-  const segments = filePath.split(path.sep);
-  return segments.some(segment => segment.startsWith('.') && segment.length > 1);
-}
-
-function isExcludedFileType(filePath: string): boolean {
-  const excludedExtensions = ['.json', '.sqlite', '.png', '.jpg', '.jpeg', '.gif', '.zip', '.exe'];
-  // Allow .html files
-  return excludedExtensions.some(ext => filePath.endsWith(ext));
-}
 
 export async function updateFileEmbeddings(documents: { document: string; metadata: any }[]): Promise<void> {
   console.log(`[Search++] Sending ${documents.length} documents to update_file_embeddings endpoint.`);
@@ -64,79 +53,7 @@ export async function indexWorkspace(apiKey: string): Promise<void> {
     return;
   }
 
-  const workspaceFolders = vscode.workspace.workspaceFolders;
-  if (!workspaceFolders) return;
-
-  const files = await vscode.workspace.findFiles(
-    '**/*', // Include all files
-    '**/{node_modules,.*}/**' // Exclude node_modules and hidden directories
-  );
-
-  const processedFingerprints = new Set<string>();
-  const documents: { document: string; metadata: any }[] = [];
-
-  for (const file of files) {
-    if (isFileInAHiddenFolder(file.fsPath) || isExcludedFileType(file.fsPath)) {
-      console.log(`[Search++] Skipping excluded file: ${file.fsPath}`);
-      continue;
-    }
-
-    try {
-      const doc = await vscode.workspace.openTextDocument(file);
-      const fileExtension = path.extname(file.fsPath);
-
-      let symbols: FlattenedSymbol[] = [];
-      if (fileExtension === '.html') {
-        symbols = parseHTMLSymbols(doc);
-      } else {
-        const documentSymbols = await vscode.commands.executeCommand<vscode.DocumentSymbol[]>(
-          'vscode.executeDocumentSymbolProvider', file
-        );
-        if (!documentSymbols) continue;
-
-        const flatten = (symbols: vscode.DocumentSymbol[], parents: vscode.DocumentSymbol[] = []): FlattenedSymbol[] =>
-          symbols.flatMap(sym => [{ symbol: sym, parents }, ...flatten(sym.children, [...parents, sym])]);
-
-        symbols = flatten(documentSymbols).sort((a, b) =>
-          a.symbol.range.start.line - b.symbol.range.start.line
-        );
-      }
-
-      const nonOverlapping: FlattenedSymbol[] = [];
-      let lastEnd = -1;
-      for (const item of symbols) {
-        const { symbol } = item;
-        const start = symbol.range.start.line;
-        const end = symbol.range.end.line;
-        if (start >= lastEnd && !symbolIsTooSmall(symbol, doc)) {
-          nonOverlapping.push(item);
-          lastEnd = end;
-        }
-      }
-
-      for (const { symbol, parents } of nonOverlapping) {
-        const code = extractCenteredCode(doc, symbol.range, MAX_CODE_CHUNK_SIZE);
-        const fingerprint = generateFingerprint(code);
-        if (processedFingerprints.has(fingerprint)) continue;
-        processedFingerprints.add(fingerprint);
-
-        documents.push({
-          document: code,
-          metadata: {
-            filePath: file.fsPath,
-            start_line: symbol.range.start.line,
-            end_line: symbol.range.end.line,
-            language: fileExtension.replace('.', ''),
-            kind: vscode.SymbolKind[symbol.kind],
-            name: symbol.name,
-            context: getSymbolContextWithParents(symbol, parents, doc)
-          }
-        });
-      }
-    } catch (err) {
-      console.warn(`[Search++] Failed to index ${file.fsPath}`, err);
-    }
-  }
+  const documents = await collectDocumentsFromWorkspace();
 
   console.log(`[Search++] Collected ${documents.length} documents for embedding.`);
   if (documents.length > 0) {

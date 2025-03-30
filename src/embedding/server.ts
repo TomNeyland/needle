@@ -9,27 +9,29 @@ import { createVirtualEnvironment, checkRequirementsInstalled, installRequiremen
 let pythonProcess: childProcess.ChildProcess | undefined;
 const SERVER_PORT = 8000;
 const SERVER_URL = `http://localhost:${SERVER_PORT}`;
+let embeddingServerPromise: Promise<boolean> | undefined;
 
 /**
  * Starts the Python embedding server
  */
 export async function startEmbeddingServer(context: vscode.ExtensionContext): Promise<boolean> {
-  if (pythonProcess) {
-    console.log('[Search++] Embedding server already running');
-    return true;
+  if (embeddingServerPromise) {
+    console.log('[Search++] Embedding server already starting or running');
+    return embeddingServerPromise;
   }
 
-  return new Promise<boolean>(async (resolve) => {
+  embeddingServerPromise = new Promise<boolean>(async (resolve) => {
     console.log('[Search++] Starting embedding server...');
-    
+
     const extensionPath = context.extensionPath;
     const scriptPath = path.join(extensionPath, 'src', 'embedding', 'main.py');
     const venvPath = path.join(extensionPath, 'venv');
     const requirementsPath = path.join(extensionPath, 'src', 'embedding', 'requirements.txt');
-    
+
     // Check if the script and requirements exist
     if (!fs.existsSync(scriptPath) || !fs.existsSync(requirementsPath)) {
       vscode.window.showErrorMessage('Search++: Required files for embedding server are missing.');
+      embeddingServerPromise = undefined;
       return resolve(false);
     }
 
@@ -41,6 +43,7 @@ export async function startEmbeddingServer(context: vscode.ExtensionContext): Pr
       } catch (err) {
         console.error('[Search++] Failed to create virtual environment:', err);
         vscode.window.showErrorMessage('Search++: Failed to create Python virtual environment.');
+        embeddingServerPromise = undefined;
         return resolve(false);
       }
     }
@@ -62,13 +65,14 @@ export async function startEmbeddingServer(context: vscode.ExtensionContext): Pr
     } catch (err) {
       console.error('[Search++] Failed to check or install requirements:', err);
       vscode.window.showErrorMessage('Search++: Failed to install Python dependencies.');
+      embeddingServerPromise = undefined;
       return resolve(false);
     }
 
     // Start the Python server with proper environment variables
     console.log(`[Search++] Using Python at: ${pythonExecutable}`);
     console.log(`[Search++] Running script: ${scriptPath}`);
-    
+
     pythonProcess = childProcess.spawn(pythonExecutable, [scriptPath], {
       cwd: extensionPath,
       stdio: 'pipe',
@@ -83,29 +87,43 @@ export async function startEmbeddingServer(context: vscode.ExtensionContext): Pr
     pythonProcess.stdout?.on('data', (data) => {
       const output = data.toString().trim();
       console.log(`[Embedding Server] ${output}`);
-      
+
       // Check if the output contains a message indicating the server is running
-      if (output.includes('Server started')) {
+      if (output.includes('Application startup complete')) {
         resolve(true);
       }
     });
-    
+
     pythonProcess.stderr?.on('data', (data) => {
       const errorMsg = data.toString().trim();
       console.error(`[Embedding Server Error] ${errorMsg}`);
+
+      // Check if the output contains a message indicating the server is running
+      if (errorMsg.includes('Application startup complete.')) {
+        resolve(true);
+      }
+
+      // Check if the output contains an exit message
+      if (errorMsg.toLowerCase().includes('exit')) {
+        resolve(false);
+      }
     });
 
     pythonProcess.on('error', (err) => {
       console.error('[Search++] Failed to start embedding server:', err);
       pythonProcess = undefined;
+      embeddingServerPromise = undefined;
       resolve(false);
     });
 
     pythonProcess.on('exit', (code) => {
       console.log(`[Search++] Embedding server exited with code ${code}`);
       pythonProcess = undefined;
+      embeddingServerPromise = undefined;
     });
   });
+
+  return embeddingServerPromise;
 }
 
 /**

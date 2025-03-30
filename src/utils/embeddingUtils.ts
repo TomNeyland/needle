@@ -3,6 +3,37 @@ import * as vscode from 'vscode';
 import * as crypto from 'crypto';
 import * as path from 'path';
 import { parseDocument } from 'htmlparser2';
+// import { Ignore } from 'ignore';
+import * as fs from 'fs';
+
+// const gitignore = Ignore();
+
+// // Load .gitignore rules if the file exists
+// const gitignorePath = path.join(vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || '', '.gitignore');
+// if (fs.existsSync(gitignorePath)) {
+//   const gitignoreContent = fs.readFileSync(gitignorePath, 'utf-8');
+//   gitignore.add(gitignoreContent);
+// }
+
+export function isFileInAHiddenFolder(filePath: string): boolean {
+  const segments = filePath.split(path.sep);
+  return segments.some(segment => segment.startsWith('.') && segment.length > 1);
+}
+
+export function isExcludedFileType(filePath: string): boolean {
+  const excludedExtensions = ['.json', '.sqlite', '.png', '.jpg', '.jpeg', '.gif', '.zip', '.exe'];
+  return excludedExtensions.some(ext => filePath.endsWith(ext));
+}
+
+export function isIgnoredByGitignore(filePath: string): boolean {
+  return false;
+  // const relativePath = path.relative(vscode.workspace.workspaceFolders?.[0]?.uri.fsPath || '', filePath);
+  // return gitignore.ignores(relativePath);
+}
+
+export function shouldExcludeFile(filePath: string): boolean {
+  return isFileInAHiddenFolder(filePath) || isExcludedFileType(filePath) || isIgnoredByGitignore(filePath);
+}
 
 export interface EmbeddedChunk {
   embedding: number[];
@@ -275,4 +306,76 @@ export function extractCenteredCode(doc: vscode.TextDocument, symbolRange: vscod
   
   // Extract the centered portion
   return code.substring(start, end);
+}
+
+export async function collectDocumentsFromWorkspace(): Promise<{ document: string; metadata: any }[]> {
+  const documents: { document: string; metadata: any }[] = [];
+  const files = await vscode.workspace.findFiles(
+    '**/*', // Include all files
+    '**/{node_modules,.*}/**' // Exclude node_modules and hidden directories
+  );
+
+  for (const file of files) {
+    try {
+      const filePath = file.fsPath;
+      if (shouldExcludeFile(filePath)) {
+        console.log(`[Search++] Excluding file: ${filePath}`);
+        continue;
+      }
+
+      const doc = await vscode.workspace.openTextDocument(file);
+      const fileExtension = path.extname(file.fsPath);
+
+      let symbols: { symbol: vscode.DocumentSymbol; parents: vscode.DocumentSymbol[] }[] = [];
+      if (fileExtension === '.html') {
+        symbols = parseHTMLSymbols(doc);
+      } else {
+        const documentSymbols = await vscode.commands.executeCommand<vscode.DocumentSymbol[]>(
+          'vscode.executeDocumentSymbolProvider', file
+        );
+        if (!documentSymbols) continue;
+
+        const flatten = (symbols: vscode.DocumentSymbol[], parents: vscode.DocumentSymbol[] = []): { symbol: vscode.DocumentSymbol; parents: vscode.DocumentSymbol[] }[] =>
+          symbols.flatMap(sym => [{ symbol: sym, parents }, ...flatten(sym.children, [...parents, sym])]);
+
+        symbols = flatten(documentSymbols).sort((a, b) =>
+          a.symbol.range.start.line - b.symbol.range.start.line
+        );
+      }
+
+      const nonOverlapping: { symbol: vscode.DocumentSymbol; parents: vscode.DocumentSymbol[] }[] = [];
+      let lastEnd = -1;
+      for (const item of symbols) {
+        const { symbol } = item;
+        const start = symbol.range.start.line;
+        const end = symbol.range.end.line;
+        if (start >= lastEnd && !symbolIsTooSmall(symbol, doc)) {
+          nonOverlapping.push(item);
+          lastEnd = end;
+        }
+      }
+
+      for (const { symbol, parents } of nonOverlapping) {
+        const code = extractCenteredCode(doc, symbol.range, 1000);
+        const fingerprint = generateFingerprint(code);
+
+        documents.push({
+          document: code,
+          metadata: {
+            filePath: file.fsPath,
+            start_line: symbol.range.start.line,
+            end_line: symbol.range.end.line,
+            language: fileExtension.replace('.', ''),
+            kind: vscode.SymbolKind[symbol.kind],
+            name: symbol.name,
+            context: getSymbolContextWithParents(symbol, parents, doc)
+          }
+        });
+      }
+    } catch (err) {
+      console.warn(`[Search++] Failed to index ${file.fsPath}`, err);
+    }
+  }
+
+  return documents;
 }
