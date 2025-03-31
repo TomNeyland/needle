@@ -10,6 +10,7 @@ from chromadb import Client
 import chromadb.utils.embedding_functions as embedding_functions
 import uuid  # Import the UUID module for generating unique IDs
 import math
+import re  # Import the re module for regex operations
 
 BATCH_SIZE = 100
 
@@ -51,6 +52,7 @@ class SearchQuery(BaseModel):
     query: str
     max_results: int = 15
     similarity_threshold: float = 0.2
+    exclusion_pattern: str = ""  # Optional field for exclusion patterns
 
 @app.get("/healthz")
 def health_check():
@@ -132,17 +134,27 @@ async def update_file_embeddings(input: FileEmbeddingInput):
 async def search_embeddings(input: SearchQuery):
     try:
         # Perform the search in ChromaDB
+        # Fetch more results than max_results to account for exclusions
+        extra_results_factor = 2  # Fetch twice the max_results to account for exclusions
+        n_results_to_fetch = input.max_results * extra_results_factor
         results = collection.query(
             query_texts=[input.query],
-            n_results=input.max_results
+            n_results=n_results_to_fetch
         )
 
-        # Filter results based on similarity threshold
+        # Filter results based on similarity threshold and exclusion pattern
         filtered_results = []
         for doc, metadata, distance in zip(results["documents"][0], results["metadatas"][0], results["distances"][0]):
             # Normalize similarity to range [0, 1] where 1 is identical and 0 is not similar
             similarity = 1 - (distance / 2)
             if similarity >= input.similarity_threshold:
+                # Check exclusion pattern if provided
+                if hasattr(input, 'exclusion_pattern') and input.exclusion_pattern:
+                    exclusion_pattern = input.exclusion_pattern
+                    file_path = metadata.get("filePath", "")
+                    if should_exclude_file(file_path, exclusion_pattern):
+                        continue
+
                 filtered_results.append({
                     "embedding": [],  # Embedding is not returned for search results
                     "code": doc,
@@ -154,10 +166,31 @@ async def search_embeddings(input: SearchQuery):
                     "score": similarity  # Rename field to 'score' for UI compatibility
                 })
 
-        return {"results": filtered_results}
+            # Stop collecting results once we have enough after filtering
+            if len(filtered_results) >= input.max_results:
+                break
+
+        return {"results": filtered_results[:input.max_results]}  # Return only the top max_results
     except Exception as e:
         print("[ERROR] ChromaDB search error:", str(e))
         raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
+
+def should_exclude_file(file_path: str, exclusion_pattern: str) -> bool:
+    try:
+        # Split by comma to support multiple patterns like "scss, py"
+        patterns = [pattern.strip() for pattern in exclusion_pattern.split(',') if pattern.strip()]
+
+        for pattern in patterns:
+            # Convert glob patterns like *.{json,md} to proper regex
+            regex_pattern = pattern.replace('.', '\\.').replace('*', '.*').replace('{', '(').replace('}', ')').replace(',', '|')
+            regex = re.compile(regex_pattern, re.IGNORECASE)
+            if regex.search(file_path):
+                return True
+
+        return False
+    except Exception as e:
+        print(f"[ERROR] Invalid exclusion pattern: {exclusion_pattern}", e)
+        return False
 
 if __name__ == "__main__":
     uvicorn.run(app, host="127.0.0.1", port=8000)

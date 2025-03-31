@@ -8,7 +8,7 @@ import { startEmbeddingServer } from '../embedding/server';
 import { global } from '../extension';
 
 const SIMILARITY_THRESHOLD = 0.2; // Only consider results with a score above this threshold
-const MAX_RESULTS = 15; // Maximum number of results to return
+const MAX_RESULTS = 30; // Maximum number of results to return
 const MAX_CODE_CHUNK_SIZE = 1000; // Maximum characters allowed in a code chunk
 
 /**
@@ -56,7 +56,7 @@ function shouldExcludeFile(filePath: string, exclusionPattern: string): boolean 
 /**
  * Performs semantic search based on a query and returns matching code chunks
  */
-export async function performSearch(query: string, exclusionPattern: string = ''): Promise<EmbeddedChunk[]> {
+export async function performSearch(query: string, exclusionPattern?: string): Promise<EmbeddedChunk[]> {
   if (!query) {
     return [];
   }
@@ -70,7 +70,8 @@ export async function performSearch(query: string, exclusionPattern: string = ''
       body: JSON.stringify({
         query,
         max_results: MAX_RESULTS,
-        similarity_threshold: SIMILARITY_THRESHOLD
+        similarity_threshold: SIMILARITY_THRESHOLD,
+        exclusion_pattern: exclusionPattern || "" // Pass the exclusion pattern if provided
       })
     });
 
@@ -81,12 +82,7 @@ export async function performSearch(query: string, exclusionPattern: string = ''
     }
 
     const data = (await res.json()) as { results: EmbeddedChunk[] };
-    let results: EmbeddedChunk[] = data.results;
-
-    // Apply exclusion pattern filtering
-    if (exclusionPattern) {
-      results = results.filter(chunk => !shouldExcludeFile(chunk.filePath, exclusionPattern));
-    }
+    const results: EmbeddedChunk[] = data.results;
 
     console.log(`[Search++] Found ${results.length} matching chunks.`);
     return results.slice(0, MAX_RESULTS); // Limit to max results
