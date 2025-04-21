@@ -41,14 +41,14 @@ function shouldExcludeFile(filePath: string, exclusionPattern: string): boolean 
       const isExcluded = regex.test(filePath);
       
       if (isExcluded) {
-        console.log(`[Search++] Excluding file: ${filePath} (matched pattern: ${pattern})`);
+        console.log(`[Needle] Excluding file: ${filePath} (matched pattern: ${pattern})`);
         return true;
       }
     }
     
     return false;
   } catch (error) {
-    console.error(`[Search++] Invalid exclusion pattern: ${exclusionPattern}`, error);
+    console.error(`[Needle] Invalid exclusion pattern: ${exclusionPattern}`, error);
     return false;
   }
 }
@@ -61,7 +61,7 @@ export async function performSearch(query: string, exclusionPattern?: string): P
     return [];
   }
 
-  console.log(`[Search++] Performing search for query: "${query}"`);
+  console.log(`[Needle] Performing search for query: "${query}"`);
 
   try {
     const res = await fetch('http://localhost:8000/search', {
@@ -77,17 +77,17 @@ export async function performSearch(query: string, exclusionPattern?: string): P
 
     if (!res.ok) {
       const errorText = await res.text();
-      console.error(`[Search++] Search API error ${res.status}: ${errorText}`);
-      throw new Error(`[Search++] Failed to perform search: ${res.statusText}`);
+      console.error(`[Needle] Search API error ${res.status}: ${errorText}`);
+      throw new Error(`[Needle] Failed to perform search: ${res.statusText}`);
     }
 
     const data = (await res.json()) as { results: EmbeddedChunk[] };
     const results: EmbeddedChunk[] = data.results;
 
-    console.log(`[Search++] Found ${results.length} matching chunks.`);
+    console.log(`[Needle] Found ${results.length} matching chunks.`);
     return results.slice(0, MAX_RESULTS); // Limit to max results
   } catch (err) {
-    console.error(`[Search++] Error during search: ${err}`);
+    console.error(`[Needle] Error during search: ${err}`);
     return [];
   }
 }

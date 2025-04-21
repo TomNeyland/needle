@@ -1,6 +1,6 @@
-# Search Quality Improvements for Search++
+# Search Quality Improvements for Needle
 
-This document outlines strategies and improvements for enhancing search quality in the Search++ extension.
+This document outlines strategies and improvements for enhancing search quality in the Needle extension.
 
 ## Current State Assessment
 
@@ -105,7 +105,7 @@ The current search implementation uses:
       
       return [...reranked, ...remaining].slice(0, limit);
     } catch (error) {
-      console.error('[Search++] LLM re-ranking failed:', error);
+      console.error('[Needle] LLM re-ranking failed:', error);
       return results; // Fall back to original order
     }
   }

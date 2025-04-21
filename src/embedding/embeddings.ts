@@ -22,14 +22,14 @@ export async function getLocalEmbedding(text: string): Promise<number[] | null> 
 
     if (!response.ok) {
       const errorText = await response.text();
-      console.error(`[Search++] Embedding error: ${response.status} - ${errorText}`);
+      console.error(`[Needle] Embedding error: ${response.status} - ${errorText}`);
       return null;
     }
 
     const data = await response.json() as { embeddings: number[][] };
     return data.embeddings[0]; // 🔥 return the first embedding from the array
   } catch (err) {
-    console.error('[Search++] Failed to embed query:', err);
+    console.error('[Needle] Failed to embed query:', err);
     return null;
   }
 }

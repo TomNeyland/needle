@@ -1,10 +1,10 @@
-# Embedding Improvements Plan for Search++
+# Embedding Improvements Plan for Needle
 
-This document outlines a comprehensive plan for improving the embedding system in Search++ to enhance semantic search capabilities.
+This document outlines a comprehensive plan for improving the embedding system in Needle to enhance semantic search capabilities.
 
 ## Current Implementation Overview
 
-Currently, Search++ uses:
+Currently, Needle uses:
 - OpenAI's `text-embedding-3-small` model
 - ChromaDB for vector storage
 - Document symbolization via VS Code's DocumentSymbol API
@@ -79,9 +79,9 @@ interface EmbeddingConfig {
 
 // Example settings.json contribution
 // {
-//   "searchpp.embedding.provider": "openai",
-//   "searchpp.embedding.model": "text-embedding-3-small",
-//   "searchpp.embedding.dimensions": 1536
+//   "needle.embedding.provider": "openai",
+//   "needle.embedding.model": "text-embedding-3-small",
+//   "needle.embedding.dimensions": 1536
 // }
 ```
 

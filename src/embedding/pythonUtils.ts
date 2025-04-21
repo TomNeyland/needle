@@ -9,7 +9,7 @@ export async function createVirtualEnvironment(extensionPath: string, venvPath: 
   return new Promise<void>((resolve, reject) => {
     const pythonCommand = process.platform === 'win32' ? 'python' : 'python3';
 
-    console.log(`[Search++] Checking Python installation...`);
+    console.log(`[Needle] Checking Python installation...`);
     const checkProcess = childProcess.spawn(pythonCommand, ['--version']);
 
     let checkError = '';
@@ -19,13 +19,13 @@ export async function createVirtualEnvironment(extensionPath: string, venvPath: 
     });
 
     checkProcess.on('error', (err) => {
-      console.error(`[Search++] Error checking Python: ${err.message}`);
+      console.error(`[Needle] Error checking Python: ${err.message}`);
       reject(new Error(`Python not found or not accessible. Make sure Python 3.6+ is installed and in your PATH.`));
     });
 
     checkProcess.on('exit', (checkCode) => {
       if (checkCode !== 0) {
-        console.error(`[Search++] Python check failed: ${checkError}`);
+        console.error(`[Needle] Python check failed: ${checkError}`);
         reject(new Error(`Python not available. Error: ${checkError}`));
         return;
       }
@@ -49,13 +49,13 @@ export async function createVirtualEnvironment(extensionPath: string, venvPath: 
       moduleCheckProcess.on('exit', (moduleCode) => {
         const hasEnsurepip = moduleCheckOutput.includes('ensurepip available');
 
-        console.log(`[Search++] Creating virtual environment at ${venvPath}`);
+        console.log(`[Needle] Creating virtual environment at ${venvPath}`);
 
         const venvArgs = hasEnsurepip
           ? ['-m', 'venv', venvPath]
           : ['-m', 'venv', '--without-pip', venvPath];
 
-        console.log(`[Search++] Using venv command: ${pythonCommand} ${venvArgs.join(' ')}`);
+        console.log(`[Needle] Using venv command: ${pythonCommand} ${venvArgs.join(' ')}`);
 
         const venvProcess = childProcess.spawn(pythonCommand, venvArgs, {
           cwd: extensionPath,
@@ -67,29 +67,29 @@ export async function createVirtualEnvironment(extensionPath: string, venvPath: 
 
         venvProcess.stdout?.on('data', (data) => {
           output += data.toString();
-          console.log(`[Search++ venv] ${data.toString().trim()}`);
+          console.log(`[Needle venv] ${data.toString().trim()}`);
         });
 
         venvProcess.stderr?.on('data', (data) => {
           errorOutput += data.toString();
-          console.error(`[Search++ venv error] ${data.toString().trim()}`);
+          console.error(`[Needle venv error] ${data.toString().trim()}`);
         });
 
         venvProcess.on('error', (err) => {
-          console.error(`[Search++] Venv creation process error: ${err.message}`);
+          console.error(`[Needle] Venv creation process error: ${err.message}`);
           reject(new Error(`Failed to create virtual environment: ${err.message}`));
         });
 
         venvProcess.on('exit', (code) => {
           if (code === 0) {
-            console.log('[Search++] Virtual environment created successfully');
+            console.log('[Needle] Virtual environment created successfully');
             if (!hasEnsurepip) {
-              console.log('[Search++] Note: Virtual environment created without pip (ensurepip not available)');
+              console.log('[Needle] Note: Virtual environment created without pip (ensurepip not available)');
             }
             resolve();
           } else {
-            console.error(`[Search++] Venv creation failed with code ${code}`);
-            console.error(`[Search++] Venv error output: ${errorOutput}`);
+            console.error(`[Needle] Venv creation failed with code ${code}`);
+            console.error(`[Needle] Venv error output: ${errorOutput}`);
             reject(new Error(`Failed to create virtual environment. Exit code: ${code}. Error: ${errorOutput || output}`));
           }
         });
@@ -130,7 +130,7 @@ export async function checkRequirementsInstalled(pythonExecutable: string): Prom
  */
 export async function installRequirements(pythonExecutable: string, requirementsPath: string): Promise<void> {
   return new Promise<void>((resolve, reject) => {
-    console.log(`[Search++] Installing requirements from ${requirementsPath}`);
+    console.log(`[Needle] Installing requirements from ${requirementsPath}`);
 
     const checkPipProcess = childProcess.spawn(pythonExecutable, ['-m', 'pip', '--version'], {
       stdio: 'pipe'
@@ -144,7 +144,7 @@ export async function installRequirements(pythonExecutable: string, requirements
 
     checkPipProcess.on('exit', async (pipCheckCode) => {
       if (pipCheckCode !== 0 || pipCheckError.includes('No module named pip')) {
-        console.log('[Search++] Pip not found in environment, using system pip to install requirements directly...');
+        console.log('[Needle] Pip not found in environment, using system pip to install requirements directly...');
 
         try {
           const systemPipCmd = process.platform === 'win32' ? 'pip' : 'pip3';
@@ -158,16 +158,16 @@ export async function installRequirements(pythonExecutable: string, requirements
             sitePackagesPath = path.join(venvPath, 'lib', pythonVersionDir, 'site-packages');
           }
 
-          console.log(`[Search++] Installing requirements to venv at ${sitePackagesPath} using system pip`);
+          console.log(`[Needle] Installing requirements to venv at ${sitePackagesPath} using system pip`);
 
           const requirements = fs.readFileSync(requirementsPath, 'utf8')
             .split('\n')
             .filter(line => line.trim() && !line.startsWith('#'));
 
-          console.log(`[Search++] Installing packages: ${requirements.join(', ')}`);
+          console.log(`[Needle] Installing packages: ${requirements.join(', ')}`);
 
           for (const req of requirements) {
-            console.log(`[Search++] Installing ${req}...`);
+            console.log(`[Needle] Installing ${req}...`);
 
             const pipArgs = ['install', '--target', sitePackagesPath, req.trim()];
             const installProcess = childProcess.spawn(systemPipCmd, pipArgs, {
@@ -180,36 +180,36 @@ export async function installRequirements(pythonExecutable: string, requirements
             installProcess.stdout?.on('data', (data) => {
               const text = data.toString().trim();
               installOutput += text;
-              console.log(`[Search++ pip] ${text}`);
+              console.log(`[Needle pip] ${text}`);
             });
 
             installProcess.stderr?.on('data', (data) => {
               const text = data.toString().trim();
               if (!text.includes('WARNING:') && !text.includes('DEPRECATION:')) {
                 installError += text;
-                console.error(`[Search++ pip error] ${text}`);
+                console.error(`[Needle pip error] ${text}`);
               }
             });
 
             await new Promise<void>((resolveInstall, rejectInstall) => {
               installProcess.on('exit', (code) => {
                 if (code === 0) {
-                  console.log(`[Search++] Successfully installed ${req}`);
+                  console.log(`[Needle] Successfully installed ${req}`);
                   resolveInstall();
                 } else {
-                  console.error(`[Search++] Failed to install ${req}`);
+                  console.error(`[Needle] Failed to install ${req}`);
                   rejectInstall(new Error(`Failed to install ${req}: ${installError}`));
                 }
               });
             });
           }
 
-          console.log('[Search++] All requirements installed successfully using system pip');
+          console.log('[Needle] All requirements installed successfully using system pip');
           resolve();
           return;
 
         } catch (installError) {
-          console.error('[Search++] Failed to install requirements with system pip:', installError);
+          console.error('[Needle] Failed to install requirements with system pip:', installError);
           reject(new Error(`Failed to install requirements with system pip: ${(installError as any).message || installError}`));
           return;
         }
@@ -225,14 +225,14 @@ export async function installRequirements(pythonExecutable: string, requirements
       pipProcess.stdout?.on('data', (data) => {
         const text = data.toString().trim();
         output += text;
-        console.log(`[Search++ pip] ${text}`);
+        console.log(`[Needle pip] ${text}`);
       });
 
       pipProcess.stderr?.on('data', (data) => {
         const text = data.toString().trim();
         errorOutput += text;
         if (!text.includes('WARNING:') && !text.includes('DEPRECATION:')) {
-          console.error(`[Search++ pip error] ${text}`);
+          console.error(`[Needle pip error] ${text}`);
         }
       });
 
@@ -242,10 +242,10 @@ export async function installRequirements(pythonExecutable: string, requirements
 
       pipProcess.on('exit', (code) => {
         if (code === 0) {
-          console.log('[Search++] Requirements installed successfully');
+          console.log('[Needle] Requirements installed successfully');
           resolve();
         } else {
-          console.error(`[Search++] Requirements installation failed with code ${code}`);
+          console.error(`[Needle] Requirements installation failed with code ${code}`);
           reject(new Error(`Failed to install requirements. Exit code: ${code}. Error: ${errorOutput}`));
         }
       });

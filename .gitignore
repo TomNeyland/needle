@@ -73,3 +73,4 @@ Desktop.ini
 coverage/
 .nyc_output/
 *.lcov
+.venv

@@ -16,11 +16,11 @@ let searchSidebarProvider: SearchSidebarViewProvider;
 let statusBarItem: vscode.StatusBarItem;
 
 export function activate(context: vscode.ExtensionContext) {
-  console.log('🔍 [Search++] Activating extension on ' + process.platform);
-  console.log('🔍 [Search++] Extension path: ' + context.extensionPath);
+  console.log('🔍 [Needle] Activating extension on ' + process.platform);
+  console.log('🔍 [Needle] Extension path: ' + context.extensionPath);
 
   if (!isWorkspaceReady()) {
-    vscode.window.showErrorMessage('Search++: Workspace is not ready. Please open a folder or workspace.');
+    vscode.window.showErrorMessage('Needle: Workspace is not ready. Please open a folder or workspace.');
     return;
   }
 
@@ -29,15 +29,15 @@ export function activate(context: vscode.ExtensionContext) {
 
     startEmbeddingServer(context).then(async (started) => {
       if (!started) {
-        vscode.window.showErrorMessage('Search++: Failed to start local embedding server. Semantic search will not work.');
+        vscode.window.showErrorMessage('Needle: Failed to start local embedding server. Semantic search will not work.');
       } else {
         // Automatically index the workspace once the server is healthy
         try {
-          await vscode.commands.executeCommand('searchpp.regenerateEmbeddings');
-          // await vscode.commands.executeCommand('searchpp.regenerateEmbeddings');
-          console.log('🔍 [Search++] Workspace indexed successfully on startup.');
+          await vscode.commands.executeCommand('needle.regenerateEmbeddings');
+          // await vscode.commands.executeCommand('needle.regenerateEmbeddings');
+          console.log('🔍 [Needle] Workspace indexed successfully on startup.');
         } catch (error) {
-          console.error('🔍 [Search++] Failed to index workspace on startup:', error);
+          console.error('🔍 [Needle] Failed to index workspace on startup:', error);
         }
       }
     });
@@ -46,31 +46,31 @@ export function activate(context: vscode.ExtensionContext) {
 
     searchSidebarProvider = new SearchSidebarViewProvider(context);
     context.subscriptions.push(
-      vscode.window.registerWebviewViewProvider('searchpp.sidebar', searchSidebarProvider)
+      vscode.window.registerWebviewViewProvider('needle.sidebar', searchSidebarProvider)
     );
 
     statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
-    statusBarItem.text = "$(search) Search++";
-    statusBarItem.tooltip = "Click to open Search++";
-    statusBarItem.command = "searchpp.smartFind";
+    statusBarItem.text = "$(search) Needle";
+    statusBarItem.tooltip = "Click to open Needle";
+    statusBarItem.command = "needle.smartFind";
     statusBarItem.show();
     context.subscriptions.push(statusBarItem);
 
     registerCommands(context);
 
     context.subscriptions.push(
-      vscode.commands.registerCommand('searchpp.regenerateEmbeddings', async (exclusionPattern: string = '') => {
+      vscode.commands.registerCommand('needle.regenerateEmbeddings', async (exclusionPattern: string = '') => {
         try {
           await regenerateEmbeddings();
         } catch (error) {
-          vscode.window.showErrorMessage(`Search++: Failed to regenerate embeddings: ${error instanceof Error ? error.message : 'Unknown error'}`);
+          vscode.window.showErrorMessage(`Needle: Failed to regenerate embeddings: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }
       })
     );
 
-    console.log('🔍 [Search++] Extension activated successfully');
+    console.log('🔍 [Needle] Extension activated successfully');
   } catch (error) {
-    vscode.window.showErrorMessage('Search++: Error activating extension: ' + error);
+    vscode.window.showErrorMessage('Needle: Error activating extension: ' + error);
   }
 }
 
@@ -79,6 +79,6 @@ export function deactivate() {
     statusBarItem.dispose();
   }
   stopEmbeddingServer().catch(err => {
-    console.error('[Search++] Error stopping embedding server:', err);
+    console.error('[Needle] Error stopping embedding server:', err);
   });
 }

@@ -16,21 +16,21 @@ let embeddingServerPromise: Promise<boolean> | undefined;
  */
 export async function startEmbeddingServer(context: vscode.ExtensionContext): Promise<boolean> {
   if (embeddingServerPromise) {
-    console.log('[Search++] Embedding server already starting or running');
+    console.log('[Needle] Embedding server already starting or running');
     return embeddingServerPromise;
   }
 
   embeddingServerPromise = new Promise<boolean>(async (resolve) => {
-    console.log('[Search++] Starting embedding server...');
+    console.log('[Needle] Starting embedding server...');
 
     const extensionPath = context.extensionPath;
     const scriptPath = path.join(extensionPath, 'src', 'embedding', 'main.py');
-    const venvPath = path.join(extensionPath, 'venv');
+    const venvPath = path.join(extensionPath, '.venv');
     const requirementsPath = path.join(extensionPath, 'src', 'embedding', 'requirements.txt');
 
     // Check if the script and requirements exist
     if (!fs.existsSync(scriptPath) || !fs.existsSync(requirementsPath)) {
-      vscode.window.showErrorMessage('Search++: Required files for embedding server are missing.');
+      vscode.window.showErrorMessage('Needle: Required files for embedding server are missing.');
       embeddingServerPromise = undefined;
       return resolve(false);
     }
@@ -38,11 +38,11 @@ export async function startEmbeddingServer(context: vscode.ExtensionContext): Pr
     // Create venv if it doesn't exist
     if (!fs.existsSync(venvPath)) {
       try {
-        console.log('[Search++] Creating virtual environment...');
+        console.log('[Needle] Creating virtual environment...');
         await createVirtualEnvironment(extensionPath, venvPath);
       } catch (err) {
-        console.error('[Search++] Failed to create virtual environment:', err);
-        vscode.window.showErrorMessage('Search++: Failed to create Python virtual environment.');
+        console.error('[Needle] Failed to create virtual environment:', err);
+        vscode.window.showErrorMessage('Needle: Failed to create Python virtual environment.');
         embeddingServerPromise = undefined;
         return resolve(false);
       }
@@ -59,19 +59,19 @@ export async function startEmbeddingServer(context: vscode.ExtensionContext): Pr
     try {
       const requirementsInstalled = await checkRequirementsInstalled(pythonExecutable);
       if (!requirementsInstalled) {
-        console.log('[Search++] Requirements not found. Installing...');
+        console.log('[Needle] Requirements not found. Installing...');
         await installRequirements(pythonExecutable, requirementsPath);
       }
     } catch (err) {
-      console.error('[Search++] Failed to check or install requirements:', err);
-      vscode.window.showErrorMessage('Search++: Failed to install Python dependencies.');
+      console.error('[Needle] Failed to check or install requirements:', err);
+      vscode.window.showErrorMessage('Needle: Failed to install Python dependencies.');
       embeddingServerPromise = undefined;
       return resolve(false);
     }
 
     // Start the Python server with proper environment variables
-    console.log(`[Search++] Using Python at: ${pythonExecutable}`);
-    console.log(`[Search++] Running script: ${scriptPath}`);
+    console.log(`[Needle] Using Python at: ${pythonExecutable}`);
+    console.log(`[Needle] Running script: ${scriptPath}`);
 
     pythonProcess = childProcess.spawn(pythonExecutable, [scriptPath], {
       cwd: extensionPath,
@@ -110,14 +110,14 @@ export async function startEmbeddingServer(context: vscode.ExtensionContext): Pr
     });
 
     pythonProcess.on('error', (err) => {
-      console.error('[Search++] Failed to start embedding server:', err);
+      console.error('[Needle] Failed to start embedding server:', err);
       pythonProcess = undefined;
       embeddingServerPromise = undefined;
       resolve(false);
     });
 
     pythonProcess.on('exit', (code) => {
-      console.log(`[Search++] Embedding server exited with code ${code}`);
+      console.log(`[Needle] Embedding server exited with code ${code}`);
       pythonProcess = undefined;
       embeddingServerPromise = undefined;
     });
@@ -131,7 +131,7 @@ export async function startEmbeddingServer(context: vscode.ExtensionContext): Pr
  */
 export async function stopEmbeddingServer(): Promise<void> {
   if (pythonProcess) {
-    console.log('[Search++] Stopping embedding server...');
+    console.log('[Needle] Stopping embedding server...');
     pythonProcess.kill('SIGTERM');
     pythonProcess = undefined;
   }

@@ -14,7 +14,7 @@ export async function regenerateEmbeddings(exclusionPattern: string = ''): Promi
     throw new Error('No workspace folder open.');
   }
 
-  console.log('[Search++] Starting full re-indexing...');
+  console.log('[Needle] Starting full re-indexing...');
 
   // Ensure the server is ready
   const serverStarted = await startEmbeddingServer(global.extensionContext);
@@ -28,11 +28,11 @@ export async function regenerateEmbeddings(exclusionPattern: string = ''): Promi
   // TODO: fix this
   documents = await collectDocumentsFromWorkspace();
 
-  console.log(`[Search++] Collected ${documents.length} documents for re-embedding.`);
+  console.log(`[Needle] Collected ${documents.length} documents for re-embedding.`);
   if (documents.length > 0) {
     await updateFileEmbeddings(documents); // Send all documents to the backend
-    console.log('[Search++] Successfully re-embedded the entire workspace.');
+    console.log('[Needle] Successfully re-embedded the entire workspace.');
   } else {
-    console.log('[Search++] No documents to re-embed.');
+    console.log('[Needle] No documents to re-embed.');
   }
 }

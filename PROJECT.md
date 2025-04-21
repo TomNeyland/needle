@@ -1,13 +1,13 @@
-🔍 Project Brief: Search++ (Semantic Code Search for VS Code)
+🔍 Project Brief: Needle (Semantic Code Search for VS Code)
 
-Search++ is an AI-powered VS Code extension for semantic, natural-language codebase searching. It lets developers search their code using queries like "Where do we validate user inputs?" and quickly shows relevant, ranked results.
+Needle is an AI-powered VS Code extension for semantic, natural-language codebase searching. It lets developers search their code using queries like "Where do we validate user inputs?" and quickly shows relevant, ranked results.
 🚀 Current Status & Implementation Details
 
 We're currently in the rapid prototyping stage, intentionally using simple solutions to iterate quickly:
 
     Embedding provider: OpenAI's text-embedding-3-small API
 
-    Vector storage: A local JSON file (searchpp.embeddings.json) to keep embeddings persistently cached between sessions
+    Vector storage: A local JSON file (needle.embeddings.json) to keep embeddings persistently cached between sessions
 
     Chunking strategy: Using VS Code's built-in DocumentSymbol APIs to extract functions, classes, and methods, then prepending a hierarchical context (Class > method) to each chunk before embedding
 
@@ -37,7 +37,7 @@ Why: Long-term goal is local/offline embedding capability to reduce costs and de
 
     Current (prototype):
 
-        Local JSON file (searchpp.embeddings.json)
+        Local JSON file (needle.embeddings.json)
 
         Simple, sufficient for prototyping, not optimal for scaling
 
@@ -122,7 +122,7 @@ Here's what you should do right after receiving this brief:
 
 📌 TL;DR for the New Chat Instance
 
-You’re co-building Search++, a semantic VS Code extension prototype currently using OpenAI embeddings + JSON storage. You're aware of previously considered alternatives (local embeddings, ChromaDB, SQLite+pgvector). You’ll soon enhance chunk context with comments, implement token-aware chunking, and add semantic reranking.
+You’re co-building Needle, a semantic VS Code extension prototype currently using OpenAI embeddings + JSON storage. You're aware of previously considered alternatives (local embeddings, ChromaDB, SQLite+pgvector). You’ll soon enhance chunk context with comments, implement token-aware chunking, and add semantic reranking.
 
 Your immediate goals:
 

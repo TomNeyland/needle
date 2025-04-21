@@ -27,10 +27,10 @@ export class SearchSidebarViewProvider implements vscode.WebviewViewProvider {
       } else if (message.type === 'search') {
         const query = message.query;
         const exclusionPattern = message.exclusionPattern || '';
-        console.log(`[Search++] Received search request with query: "${query}" and exclusion pattern: "${exclusionPattern}"`);
+        console.log(`[Needle] Received search request with query: "${query}" and exclusion pattern: "${exclusionPattern}"`);
         
         const results = await vscode.commands.executeCommand(
-          'searchpp.performSearch', 
+          'needle.performSearch', 
           query, 
           exclusionPattern.toString()
         );
@@ -48,16 +48,16 @@ export class SearchSidebarViewProvider implements vscode.WebviewViewProvider {
         editor.selection = new vscode.Selection(range.start, range.end);
       } else if (message.type === 'regenerateEmbeddings') {
         const exclusionPattern = message.exclusionPattern || '';
-        console.log(`[Search++] Regenerating embeddings with exclusion pattern: "${exclusionPattern}"`);
+        console.log(`[Needle] Regenerating embeddings with exclusion pattern: "${exclusionPattern}"`);
         try {
           await vscode.window.withProgress(
             {
               location: vscode.ProgressLocation.Notification,
-              title: "Regenerating Search++ embeddings...",
+              title: "Regenerating Needle embeddings...",
               cancellable: false
             },
             async () => {
-              await vscode.commands.executeCommand('searchpp.regenerateEmbeddings', exclusionPattern);
+              await vscode.commands.executeCommand('needle.regenerateEmbeddings', exclusionPattern);
             }
           );
           this.postMessage({ type: 'regenerationSuccess' });

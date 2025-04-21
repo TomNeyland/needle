@@ -319,7 +319,7 @@ export async function collectDocumentsFromWorkspace(): Promise<{ document: strin
     try {
       const filePath = file.fsPath;
       if (shouldExcludeFile(filePath)) {
-        console.log(`[Search++] Excluding file: ${filePath}`);
+        console.log(`[Needle] Excluding file: ${filePath}`);
         continue;
       }
 
@@ -373,7 +373,7 @@ export async function collectDocumentsFromWorkspace(): Promise<{ document: strin
         });
       }
     } catch (err) {
-      console.warn(`[Search++] Failed to index ${file.fsPath}`, err);
+      console.warn(`[Needle] Failed to index ${file.fsPath}`, err);
     }
   }
 

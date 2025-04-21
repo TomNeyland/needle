@@ -1,4 +1,4 @@
-# Next Steps for Search++
+# Next Steps for Needle
 
 ## 1. Core Functionality Enhancements
 
@@ -68,7 +68,7 @@
 ## 5. Extensibility
 
 ### API and Integration Points
-- [ ] Create a clean API for other extensions to use Search++ capabilities
+- [ ] Create a clean API for other extensions to use Needle capabilities
 - [ ] Add support for custom embedding providers through plugins
 - [ ] Support for integration with other VS Code features (e.g., Problems panel)
 - [ ] Add export/import functionality for sharing embeddings between workspaces
