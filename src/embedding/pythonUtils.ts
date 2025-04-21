@@ -103,23 +103,55 @@ export async function createVirtualEnvironment(extensionPath: string, venvPath: 
  */
 export async function checkRequirementsInstalled(pythonExecutable: string): Promise<boolean> {
   return new Promise<boolean>((resolve) => {
+    console.log(`[Needle] Checking requirements with: ${pythonExecutable}`); // Added for debugging
+    
+    // Python code that tries to import all required dependencies
+    const checkCode = `
+try:
+    import fastapi
+    import uvicorn
+    import torch
+    import transformers
+    import openai
+    import chromadb
+    print("Dependencies found")
+except ImportError as e:
+    print(f"Dependencies not found: {str(e)}")
+`;
+    
     const checkProcess = childProcess.spawn(
       pythonExecutable,
-      ['-c', 'try: import numpy; import torch; print("Dependencies found"); except ImportError: print("Dependencies not found")'],
+      ['-c', checkCode],
       { stdio: 'pipe' }
     );
 
     let output = '';
+    let errorOutput = ''; // To capture stderr
 
     checkProcess.stdout?.on('data', (data) => {
-      output += data.toString().trim();
+      const chunk = data.toString();
+      console.log(`[Needle Check Req] stdout chunk: ${chunk}`); // Added for debugging
+      output += chunk.trim();
     });
 
-    checkProcess.on('error', () => {
+    // Add stderr listener
+    checkProcess.stderr?.on('data', (data) => {
+      const chunk = data.toString();
+      console.error(`[Needle Check Req] stderr chunk: ${chunk}`); // Added for debugging
+      errorOutput += chunk.trim();
+    });
+
+    checkProcess.on('error', (err) => {
+      console.error(`[Needle Check Req] Spawn error: ${err.message}`); // Added for debugging
       resolve(false);
     });
 
-    checkProcess.on('exit', () => {
+    checkProcess.on('exit', (code, signal) => {
+      // Log exit information
+      console.log(`[Needle Check Req] Exited with code: ${code}, signal: ${signal}`);
+      console.log(`[Needle Check Req] Final stdout: '${output}'`);
+      console.log(`[Needle Check Req] Final stderr: '${errorOutput}'`);
+      // Resolve based on stdout content, even if there was stderr output or a non-zero exit code
       resolve(output.includes('Dependencies found'));
     });
   });
