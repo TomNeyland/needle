@@ -15,7 +15,7 @@ export const global = {
 let searchSidebarProvider: SearchSidebarViewProvider;
 let statusBarItem: vscode.StatusBarItem;
 
-export function activate(context: vscode.ExtensionContext) {
+export async function activate(context: vscode.ExtensionContext) {
   console.log('🔍 [Needle] Activating extension on ' + process.platform);
   console.log('🔍 [Needle] Extension path: ' + context.extensionPath);
 
@@ -36,9 +36,10 @@ export function activate(context: vscode.ExtensionContext) {
         const setKeyAction = 'Set API Key';
         const dismissAction = 'Dismiss';
         
-        // Use a simpler form of the API without the modal option
+        // Use the modal option to ensure it's prominently displayed
         const notification = await vscode.window.showInformationMessage(
           'Needle needs an OpenAI API key to enable semantic search.',
+          { modal: true },
           setKeyAction,
           dismissAction
         );
@@ -109,6 +110,29 @@ export function activate(context: vscode.ExtensionContext) {
         }
       })
     );
+
+    const config = vscode.workspace.getConfiguration('needle');
+    const apiKey = config.get<string>('openaiApiKey');
+  
+    if (!apiKey) {
+      const setKey = await vscode.window.showInformationMessage(
+        'Needle: No OpenAI API key found. Would you like to set one now?',
+        'Set API Key'
+      );
+  
+      if (setKey === 'Set API Key') {
+        const userInput = await vscode.window.showInputBox({
+          prompt: 'Enter your OpenAI API key',
+          ignoreFocusOut: true,
+          password: true,
+        });
+  
+        if (userInput) {
+          await config.update('openaiApiKey', userInput, vscode.ConfigurationTarget.Global);
+          vscode.window.showInformationMessage('✅ API key saved successfully.');
+        }
+      }
+    }
 
     console.log('🔍 [Needle] Extension activated successfully');
   } catch (error) {
