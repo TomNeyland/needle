@@ -1,7 +1,5 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
-from transformers import AutoTokenizer, AutoModel
-import torch
 import uvicorn
 import os
 from openai import AsyncOpenAI
@@ -14,10 +12,11 @@ import re  # Import the re module for regex operations
 
 BATCH_SIZE = 100
 
-# Only use NEEDLE_OPENAI_API_KEY, don't fallback to generic OPENAI_API_KEY
+# Get OpenAI API key from environment variable
 NEEDLE_OPENAI_API_KEY = os.getenv("NEEDLE_OPENAI_API_KEY")
 client = AsyncOpenAI(api_key=NEEDLE_OPENAI_API_KEY)
 
+# Create embedding function with OpenAI
 openai_ef = embedding_functions.OpenAIEmbeddingFunction(
                 api_key=NEEDLE_OPENAI_API_KEY,
                 model_name="text-embedding-3-small"
@@ -25,18 +24,7 @@ openai_ef = embedding_functions.OpenAIEmbeddingFunction(
 
 app = FastAPI()
 
-use_openai = NEEDLE_OPENAI_API_KEY is not None
-
-if use_openai:
-    print("[INFO] Using OpenAI embeddings via text-embedding-3-small (NEEDLE_OPENAI_API_KEY)")
-else:
-    print("[INFO] Using local BGE model for embeddings.")
-    model_name = "BAAI/bge-code"
-    tokenizer = AutoTokenizer.from_pretrained(model_name)
-    model = AutoModel.from_pretrained(model_name)
-    model.eval()
-    device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    model.to(device)
+print("[INFO] Using OpenAI embeddings via text-embedding-3-small (NEEDLE_OPENAI_API_KEY)")
 
 # Initialize ChromaDB client
 chroma_client = Client()
@@ -57,41 +45,20 @@ class SearchQuery(BaseModel):
 
 @app.get("/healthz")
 def health_check():
-    return {"status": "ok", "mode": "openai" if use_openai else "local"}
+    return {"status": "ok", "mode": "openai"}
 
 @app.post("/embed")
 async def embed_code_batch(input: BatchCodeInput):
-    if use_openai:
-        try:
-            response = await client.embeddings.create(
-                model="text-embedding-3-small",
-                input=input.codes  # sending batch of strings
-            )
-            embeddings = [item.embedding for item in response.data]
-            return {"embeddings": embeddings}
-        except Exception as e:
-            print("[ERROR] OpenAI API error:", str(e))
-            raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
-
-    # Local model (for dev)
-    embeddings = []
-    for code in input.codes:
-        text = f"Represent code for retrieval: {code.strip()}"
-        inputs = tokenizer(text, return_tensors="pt", truncation=True, max_length=512, padding=True)
-        inputs = {k: v.to(device) for k, v in inputs.items()}
-
-        with torch.no_grad():
-            model_output = model(**inputs)
-
-        token_embeddings = model_output.last_hidden_state
-        attention_mask = inputs['attention_mask']
-        input_mask_expanded = attention_mask.unsqueeze(-1).expand(token_embeddings.size())
-        sum_embeddings = torch.sum(token_embeddings * input_mask_expanded, dim=1)
-        sum_mask = torch.clamp(input_mask_expanded.sum(dim=1), min=1e-9)
-        embedding = (sum_embeddings / sum_mask).squeeze().cpu().tolist()
-        embeddings.append(embedding)
-
-    return {"embeddings": embeddings}
+    try:
+        response = await client.embeddings.create(
+            model="text-embedding-3-small",
+            input=input.codes  # sending batch of strings
+        )
+        embeddings = [item.embedding for item in response.data]
+        return {"embeddings": embeddings}
+    except Exception as e:
+        print("[ERROR] OpenAI API error:", str(e))
+        raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
 
 @app.post("/update_file_embeddings")
 async def update_file_embeddings(input: FileEmbeddingInput):

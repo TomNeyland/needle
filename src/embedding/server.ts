@@ -12,6 +12,8 @@ let pythonProcess: childProcess.ChildProcess | undefined;
 const SERVER_PORT = 8000;
 const SERVER_URL = `http://localhost:${SERVER_PORT}`;
 let embeddingServerPromise: Promise<boolean> | undefined;
+// Track setup notification
+let setupNotification: vscode.StatusBarItem | undefined;
 
 /**
  * Starts the Python embedding server
@@ -41,8 +43,12 @@ export async function startEmbeddingServer(context: vscode.ExtensionContext): Pr
     if (!fs.existsSync(venvPath)) {
       try {
         logger.info('Creating virtual environment...');
+        // Show setup notification
+        showSetupNotification('Setting up Needle embedding server...');
         await createVirtualEnvironment(extensionPath, venvPath);
       } catch (err) {
+        // Hide notification if there was an error
+        hideSetupNotification();
         logger.error('Failed to create virtual environment:', err);
         vscode.window.showErrorMessage('Needle: Failed to create Python virtual environment.');
         embeddingServerPromise = undefined;
@@ -62,9 +68,15 @@ export async function startEmbeddingServer(context: vscode.ExtensionContext): Pr
       const requirementsInstalled = await checkRequirementsInstalled(pythonExecutable);
       if (!requirementsInstalled) {
         logger.info('Requirements not found. Installing...');
+        // Show setup notification for installing dependencies
+        showSetupNotification('Installing Needle\'s required dependencies (this may take a few minutes)...');
         await installRequirements(pythonExecutable, requirementsPath);
+        // Hide notification after dependencies are installed
+        hideSetupNotification();
       }
     } catch (err) {
+      // Hide notification if there was an error
+      hideSetupNotification();
       logger.error('Failed to check or install requirements:', err);
       vscode.window.showErrorMessage('Needle: Failed to install Python dependencies.');
       embeddingServerPromise = undefined;
@@ -124,6 +136,8 @@ export async function startEmbeddingServer(context: vscode.ExtensionContext): Pr
     });
 
     pythonProcess.on('exit', (code) => {
+      // Hide notification if server exits
+      hideSetupNotification();
       logger.info(`Embedding server exited with code ${code}`);
       pythonProcess = undefined;
       embeddingServerPromise = undefined;
@@ -141,5 +155,76 @@ export async function stopEmbeddingServer(): Promise<void> {
     logger.info('Stopping embedding server...');
     pythonProcess.kill('SIGTERM');
     pythonProcess = undefined;
+  }
+}
+
+/**
+ * Shows a status bar notification during first-time setup
+ */
+function showSetupNotification(message: string): void {
+  // Dispose existing notification if it exists
+  if (setupNotification) {
+    setupNotification.dispose();
+  }
+  
+  // Create a new status bar item
+  setupNotification = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 200);
+  setupNotification.text = `$(sync~spin) Needle: ${message}`;
+  setupNotification.tooltip = 'Needle is setting up required components for semantic search';
+  setupNotification.show();
+  
+  // Also show an information message that doesn't block the UI
+  vscode.window.withProgress({
+    location: vscode.ProgressLocation.Notification,
+    title: `Needle: ${message}`,
+    cancellable: false
+  }, () => {
+    // Return a promise that never resolves while the setup is in progress
+    return new Promise<void>(resolve => {
+      // The promise will be manually resolved when hideSetupNotification is called
+    });
+  });
+}
+
+/**
+ * Hides the setup notification and shows a success message
+ */
+function hideSetupNotification(): void {
+  if (setupNotification) {
+    setupNotification.dispose();
+    setupNotification = undefined;
+    
+    // Show a happy success message that will auto-dismiss after 10 seconds
+    const successNotification = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 200);
+    successNotification.text = `$(check) $(heart) Needle is ready to go!`;
+    successNotification.tooltip = 'Needle setup completed successfully';
+    successNotification.backgroundColor = new vscode.ThemeColor('statusBarItem.prominentBackground');
+    successNotification.color = new vscode.ThemeColor('statusBarItem.prominentForeground');
+    successNotification.show();
+    
+    // Show a non-blocking visual notification with a celebratory look
+    vscode.window.withProgress({
+      location: vscode.ProgressLocation.Notification,
+      title: "✨ Needle is ready for semantic search! ✨",
+      cancellable: false
+    }, (progress) => {
+      // Add a visual indicator of success with progress
+      for (let i = 0; i < 10; i++) {
+        setTimeout(() => {
+          progress.report({ 
+            increment: 10, 
+            message: "🔍 " + "🎉 ".repeat(i % 3 + 1)
+          });
+        }, i * 1000);
+      }
+      
+      // Auto-dismiss after 10 seconds
+      return new Promise<void>(resolve => {
+        setTimeout(() => {
+          successNotification.dispose();
+          resolve();
+        }, 10000);
+      });
+    });
   }
 }

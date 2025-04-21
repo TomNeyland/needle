@@ -111,8 +111,6 @@ export async function checkRequirementsInstalled(pythonExecutable: string): Prom
 try:
     import fastapi
     import uvicorn
-    import torch
-    import transformers
     import openai
     import chromadb
     print("Dependencies found")

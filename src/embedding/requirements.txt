@@ -1,6 +1,4 @@
 fastapi
 uvicorn
-torch
-transformers
 openai
 chromadb
