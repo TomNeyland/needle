@@ -14,18 +14,18 @@ import re  # Import the re module for regex operations
 
 BATCH_SIZE = 100
 
+# Only use NEEDLE_OPENAI_API_KEY, don't fallback to generic OPENAI_API_KEY
 NEEDLE_OPENAI_API_KEY = os.getenv("NEEDLE_OPENAI_API_KEY")
-OPENAI_API_KEY = NEEDLE_OPENAI_API_KEY  # For backward compatibility in code
-client = AsyncOpenAI(api_key=OPENAI_API_KEY)
+client = AsyncOpenAI(api_key=NEEDLE_OPENAI_API_KEY)
 
 openai_ef = embedding_functions.OpenAIEmbeddingFunction(
-                api_key=OPENAI_API_KEY,
+                api_key=NEEDLE_OPENAI_API_KEY,
                 model_name="text-embedding-3-small"
 )
 
 app = FastAPI()
 
-use_openai = OPENAI_API_KEY is not None
+use_openai = NEEDLE_OPENAI_API_KEY is not None
 
 if use_openai:
     print("[INFO] Using OpenAI embeddings via text-embedding-3-small (NEEDLE_OPENAI_API_KEY)")

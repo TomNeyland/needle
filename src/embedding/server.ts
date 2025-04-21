@@ -4,6 +4,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import * as childProcess from 'child_process';
 import { createVirtualEnvironment, checkRequirementsInstalled, installRequirements } from './pythonUtils';
+import { getOpenAIKey } from '../utils/configUtils';
 
 // Python server process configuration
 let pythonProcess: childProcess.ChildProcess | undefined;
@@ -73,11 +74,9 @@ export async function startEmbeddingServer(context: vscode.ExtensionContext): Pr
     console.log(`[Needle] Using Python at: ${pythonExecutable}`);
     console.log(`[Needle] Running script: ${scriptPath}`);
 
-    // Get the API key from config or global state
-    let needleApiKey = process.env.NEEDLE_OPENAI_API_KEY;
-    if (!needleApiKey && context.globalState) {
-      needleApiKey = context.globalState.get('needle.openaiApiKey') as string | undefined;
-    }
+    // Get the API key using our consistent method
+    let needleApiKey = await getOpenAIKey(context, false);
+    console.log(`[Needle] API key available for server: ${needleApiKey ? 'Yes' : 'No'}`);
 
     pythonProcess = childProcess.spawn(pythonExecutable, [scriptPath], {
       cwd: extensionPath,

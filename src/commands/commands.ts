@@ -15,7 +15,8 @@ export function registerCommands(context: vscode.ExtensionContext) {
     });
     
     if (apiKey) {
-      await context.globalState.update('needle.openaiApiKey', apiKey);
+      // Store in VS Code settings (recommended approach)
+      await vscode.workspace.getConfiguration('needle').update('openaiApiKey', apiKey, vscode.ConfigurationTarget.Global);
       vscode.window.showInformationMessage('Needle: API Key saved successfully');
     }
   });
@@ -24,8 +25,31 @@ export function registerCommands(context: vscode.ExtensionContext) {
 
   // Register the command to clear the API key (for testing)
   const clearApiKeyCommand = vscode.commands.registerCommand('needle.clearApiKey', async () => {
+    // Clear from VS Code settings
+    await vscode.workspace.getConfiguration('needle').update('openaiApiKey', undefined, vscode.ConfigurationTarget.Global);
+    // Also clear from extension state for backward compatibility
     await context.globalState.update('needle.openaiApiKey', undefined);
-    vscode.window.showInformationMessage('Needle: API Key has been cleared. Restart VS Code to see the API key prompt.');
+    
+    // Check if the environment variable is set
+    const envKeyPresent = process.env.NEEDLE_OPENAI_API_KEY;
+    if (envKeyPresent) {
+      vscode.window.showWarningMessage(
+        'Needle: API Key cleared from settings, but NEEDLE_OPENAI_API_KEY environment variable is still providing a key. ' +
+        'To completely clear the key, remove this environment variable.'
+      );
+    } else {
+      vscode.window.showInformationMessage('Needle: API Key has been cleared. You will be prompted to set it when needed.');
+    }
+    
+    // Force VS Code to reload the window to ensure the change takes effect
+    const reload = await vscode.window.showInformationMessage(
+      'Reload VS Code window to apply changes?', 
+      'Reload'
+    );
+    
+    if (reload === 'Reload') {
+      await vscode.commands.executeCommand('workbench.action.reloadWindow');
+    }
   });
   
   context.subscriptions.push(clearApiKeyCommand);
