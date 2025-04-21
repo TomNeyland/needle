@@ -99,6 +99,11 @@
       if (message.type === 'searchResults') {
         loadingIndicator.style.display = 'none';
         displayResults(message.results);
+      } else if (message.type === 'searchError') {
+        loadingIndicator.style.display = 'none';
+        notification.textContent = 'Error: ' + message.message;
+        notification.className = 'notification error';
+        notification.style.display = 'block';
       } else if (message.type === 'regenerationSuccess') {
         loadingIndicator.style.display = 'none';
         notification.textContent = 'Embeddings cache regenerated successfully.';

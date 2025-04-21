@@ -23,8 +23,30 @@
       {
         "command": "needle.smartFind",
         "title": "Needle: Smart Find"
+      },
+      {
+        "command": "needle.setApiKey",
+        "title": "Needle: Set OpenAI API Key"
+      },
+      {
+        "command": "needle.clearApiKey",
+        "title": "Needle: Clear OpenAI API Key"
+      },
+      {
+        "command": "needle.regenerateEmbeddings",
+        "title": "Needle: Regenerate Embeddings Cache"
       }
     ],
+    "configuration": {
+      "title": "Needle",
+      "properties": {
+        "needle.openaiApiKey": {
+          "type": "string",
+          "default": "",
+          "description": "OpenAI API Key for semantic code search"
+        }
+      }
+    },
     "viewsContainers": {
       "activitybar": [
         {

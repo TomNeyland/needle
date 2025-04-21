@@ -14,7 +14,8 @@ import re  # Import the re module for regex operations
 
 BATCH_SIZE = 100
 
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+NEEDLE_OPENAI_API_KEY = os.getenv("NEEDLE_OPENAI_API_KEY")
+OPENAI_API_KEY = NEEDLE_OPENAI_API_KEY  # For backward compatibility in code
 client = AsyncOpenAI(api_key=OPENAI_API_KEY)
 
 openai_ef = embedding_functions.OpenAIEmbeddingFunction(
@@ -27,7 +28,7 @@ app = FastAPI()
 use_openai = OPENAI_API_KEY is not None
 
 if use_openai:
-    print("[INFO] Using OpenAI embeddings via text-embedding-3-small")
+    print("[INFO] Using OpenAI embeddings via text-embedding-3-small (NEEDLE_OPENAI_API_KEY)")
 else:
     print("[INFO] Using local BGE model for embeddings.")
     model_name = "BAAI/bge-code"

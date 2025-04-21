@@ -73,6 +73,12 @@ export async function startEmbeddingServer(context: vscode.ExtensionContext): Pr
     console.log(`[Needle] Using Python at: ${pythonExecutable}`);
     console.log(`[Needle] Running script: ${scriptPath}`);
 
+    // Get the API key from config or global state
+    let needleApiKey = process.env.NEEDLE_OPENAI_API_KEY;
+    if (!needleApiKey && context.globalState) {
+      needleApiKey = context.globalState.get('needle.openaiApiKey') as string | undefined;
+    }
+
     pythonProcess = childProcess.spawn(pythonExecutable, [scriptPath], {
       cwd: extensionPath,
       stdio: 'pipe',
@@ -81,6 +87,7 @@ export async function startEmbeddingServer(context: vscode.ExtensionContext): Pr
         PATH: path.join(venvPath, process.platform === 'win32' ? 'Scripts' : 'bin') + path.delimiter + process.env.PATH,
         VIRTUAL_ENV: venvPath,
         SERVER_URL: SERVER_URL,
+        NEEDLE_OPENAI_API_KEY: needleApiKey || '',
       }
     });
 

@@ -6,7 +6,7 @@ import { registerCommands } from './commands/commands';
 import { startEmbeddingServer, stopEmbeddingServer } from './embedding/server';
 import { setupFileWatcher } from './embedding/indexer';
 import { regenerateEmbeddings } from './embedding/regenerator';
-import { isWorkspaceReady } from './utils/configUtils'; // Assuming this is where isWorkspaceReady is defined
+import { isWorkspaceReady, getOpenAIKey } from './utils/configUtils';
 
 export const global = { 
   extensionContext: undefined as unknown as vscode.ExtensionContext 
@@ -27,19 +27,54 @@ export function activate(context: vscode.ExtensionContext) {
   try {
     global.extensionContext = context;
 
-    startEmbeddingServer(context).then(async (started) => {
-      if (!started) {
-        vscode.window.showErrorMessage('Needle: Failed to start local embedding server. Semantic search will not work.');
-      } else {
-        // Automatically index the workspace once the server is healthy
-        try {
-          await vscode.commands.executeCommand('needle.regenerateEmbeddings');
-          // await vscode.commands.executeCommand('needle.regenerateEmbeddings');
-          console.log('🔍 [Needle] Workspace indexed successfully on startup.');
-        } catch (error) {
-          console.error('🔍 [Needle] Failed to index workspace on startup:', error);
+    // Check for API key first and show notification if not set
+    getOpenAIKey(context, false).then(async (apiKey) => {
+      console.log('🔍 [Needle] API Key status:', apiKey ? 'Available' : 'Not set');
+      
+      // If API key is not set, show a notification in the bottom right
+      if (!apiKey) {
+        const setKeyAction = 'Set API Key';
+        const dismissAction = 'Dismiss';
+        
+        // Use a simpler form of the API without the modal option
+        const notification = await vscode.window.showInformationMessage(
+          'Needle needs an OpenAI API key to enable semantic search.',
+          setKeyAction,
+          dismissAction
+        );
+        
+        if (notification === setKeyAction) {
+          await vscode.commands.executeCommand('needle.setApiKey');
         }
+        
+        // Also add a status bar notification that persists
+        const statusItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 110);
+        statusItem.text = "$(key) Set API Key";
+        statusItem.tooltip = "Set OpenAI API Key for Needle";
+        statusItem.command = "needle.setApiKey";
+        statusItem.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
+        statusItem.show();
+        
+        // Keep it visible for 1 minute
+        setTimeout(() => {
+          statusItem.dispose();
+        }, 60000);
       }
+      
+      // Start the server - it will use the API key from context even if undefined
+      startEmbeddingServer(context).then(async (started) => {
+        if (!started) {
+          vscode.window.showErrorMessage('Needle: Failed to start local embedding server. Semantic search will not work.');
+        } else {
+          // Automatically index the workspace once the server is healthy
+          try {
+            await vscode.commands.executeCommand('needle.regenerateEmbeddings');
+            console.log('🔍 [Needle] Workspace indexed successfully on startup.');
+          } catch (error) {
+            console.error('🔍 [Needle] Failed to index workspace on startup:', error);
+          }
+        }
+      });
     });
 
     setupFileWatcher(context);
@@ -61,7 +96,14 @@ export function activate(context: vscode.ExtensionContext) {
     context.subscriptions.push(
       vscode.commands.registerCommand('needle.regenerateEmbeddings', async (exclusionPattern: string = '') => {
         try {
-          await regenerateEmbeddings();
+          // Check for API key before regenerating embeddings
+          const apiKey = await getOpenAIKey(context);
+          if (!apiKey) {
+            console.log('🔍 [Needle] No API key available for regenerating embeddings');
+            return;
+          }
+          
+          await regenerateEmbeddings(exclusionPattern);
         } catch (error) {
           vscode.window.showErrorMessage(`Needle: Failed to regenerate embeddings: ${error instanceof Error ? error.message : 'Unknown error'}`);
         }

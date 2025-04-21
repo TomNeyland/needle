@@ -1,20 +1,23 @@
 import * as vscode from 'vscode';
 
-export async function getOpenAIKey(context: vscode.ExtensionContext): Promise<string | undefined> {
+export async function getOpenAIKey(context: vscode.ExtensionContext, showPrompt: boolean = true): Promise<string | undefined> {
+  // Prefer explicit env var if set
+  const envApiKey = process.env.NEEDLE_OPENAI_API_KEY || process.env.OPENAI_API_KEY;
   const apiKey = context.globalState.get<string>('needle.openaiApiKey');
-  const envApiKey = process.env.OPENAI_API_KEY;
 
-  if (!apiKey && !envApiKey) {
+  if (!apiKey && !envApiKey && showPrompt) {
     const response = await vscode.window.showInformationMessage(
       'Needle: OpenAI API Key is required for semantic search.',
       'Set API Key',
-      'Cancel'
+      'Dismiss'
     );
 
     if (response === 'Set API Key') {
-      return vscode.commands.executeCommand('needle.setApiKey');
+      await vscode.commands.executeCommand('needle.setApiKey');
+      // Try again after user sets it
+      return context.globalState.get<string>('needle.openaiApiKey') || undefined;
     }
-
+    // If dismissed, leave unset
     return undefined;
   }
 

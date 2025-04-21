@@ -29,6 +29,16 @@ export class SearchSidebarViewProvider implements vscode.WebviewViewProvider {
         const exclusionPattern = message.exclusionPattern || '';
         console.log(`[Needle] Received search request with query: "${query}" and exclusion pattern: "${exclusionPattern}"`);
         
+        // Check if we have an API key first
+        const apiKey = await vscode.commands.executeCommand('needle.getOpenAIKey');
+        if (!apiKey) {
+          this.postMessage({ 
+            type: 'searchError', 
+            message: 'OpenAI API Key is not set. Please set an API Key to use semantic search.'
+          });
+          return;
+        }
+        
         const results = await vscode.commands.executeCommand(
           'needle.performSearch', 
           query, 

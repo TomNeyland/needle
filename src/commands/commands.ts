@@ -22,6 +22,21 @@ export function registerCommands(context: vscode.ExtensionContext) {
 
   context.subscriptions.push(setApiKeyCommand);
 
+  // Register the command to clear the API key (for testing)
+  const clearApiKeyCommand = vscode.commands.registerCommand('needle.clearApiKey', async () => {
+    await context.globalState.update('needle.openaiApiKey', undefined);
+    vscode.window.showInformationMessage('Needle: API Key has been cleared. Restart VS Code to see the API key prompt.');
+  });
+  
+  context.subscriptions.push(clearApiKeyCommand);
+
+  // Register the command to get the API key (used by sidebar view and other components)
+  const getApiKeyCommand = vscode.commands.registerCommand('needle.getOpenAIKey', async () => {
+    return await getOpenAIKey(context);
+  });
+  
+  context.subscriptions.push(getApiKeyCommand);
+
   // Register the smart find command
   const smartFindCommand = vscode.commands.registerCommand('needle.smartFind', async (query?: string) => {
     if (!query) {
