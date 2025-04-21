@@ -1,71 +1,76 @@
-# searchpp README
+# Needle
 
-This is the README for your extension "searchpp". After writing up a brief description, we recommend including the following sections.
+Needle is an AI-powered Visual Studio Code extension that helps you find the proverbial "needle in a haystack" within your codebase. With Needle, developers can search their code using queries like "Where do we validate user inputs?" and quickly uncover relevant, ranked results.
 
 ## Features
 
-Describe specific features of your extension including screenshots of your extension in action. Image paths are relative to this README file.
+- **Semantic Search**: Use natural language to search your codebase.
+- **Advanced Filtering**: Exclude files or directories using regex patterns.
+- **Context-Aware Results**: Results are ranked based on semantic relevance and user context.
+- **Embeddings**: Uses AI embeddings to understand code structure and relationships.
+- **Customizable**: Configure settings like embedding models, exclusion patterns, and more.
 
-For example if there is an image subfolder under your extension project workspace:
+## Installation
 
-\!\[feature X\]\(images/feature-x.png\)
+1. Download and install the extension from the [VS Code Marketplace](https://marketplace.visualstudio.com/).
+2. Open your project in Visual Studio Code.
+3. Activate Needle from the Activity Bar or Command Palette.
 
-> Tip: Many popular extensions utilize animations. This is an excellent way to show off your extension! We recommend short, focused animations that are easy to follow.
+## Usage
 
-## Requirements
+1. Open the Needle sidebar from the Activity Bar.
+2. Enter your query in the search box (e.g., "Find all API route handlers").
+3. View and interact with the ranked results.
+4. Use the "Regenerate Index" button to update embeddings after significant code changes.
 
-If you have any requirements or dependencies, add a section describing those and how to install and configure them.
+## Commands
 
-## Extension Settings
+- `Needle: Smart Find` - Perform a semantic search.
+- `Needle: Regenerate Embeddings` - Rebuild the embeddings cache for your workspace.
 
-Include if your extension adds any VS Code settings through the `contributes.configuration` extension point.
+## Configuration
 
-For example:
+Needle offers several configuration options via `settings.json`:
 
-This extension contributes the following settings:
+```json
+{
+  "Needle.embedding.provider": "openai",
+  "Needle.embedding.model": "text-embedding-3-small",
+  "Needle.exclusionPatterns": ["*.json", "*.md"]
+}
+```
 
-* `myExtension.enable`: Enable/disable this extension.
-* `myExtension.thing`: Set to `blah` to do something.
+## Development
 
-## Known Issues
+### Prerequisites
 
-Calling out known issues can help limit users opening duplicate issues against your extension.
+- Node.js
+- npm
+- Python (for the embedding server)
 
-## Release Notes
+### Setup
 
-Users appreciate release notes as you update your extension.
+1. Clone the repository.
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+3. Start the development server:
+   ```bash
+   npm run watch
+   ```
 
-### 1.0.0
+### Testing
 
-Initial release of ...
+Run tests using the following command:
+```bash
+npm test
+```
 
-### 1.0.1
+## Contributing
 
-Fixed issue #.
+Contributions are welcome! Please read the [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines.
 
-### 1.1.0
+## License
 
-Added features X, Y, and Z.
-
----
-
-## Following extension guidelines
-
-Ensure that you've read through the extensions guidelines and follow the best practices for creating your extension.
-
-* [Extension Guidelines](https://code.visualstudio.com/api/references/extension-guidelines)
-
-## Working with Markdown
-
-You can author your README using Visual Studio Code. Here are some useful editor keyboard shortcuts:
-
-* Split the editor (`Cmd+\` on macOS or `Ctrl+\` on Windows and Linux).
-* Toggle preview (`Shift+Cmd+V` on macOS or `Shift+Ctrl+V` on Windows and Linux).
-* Press `Ctrl+Space` (Windows, Linux, macOS) to see a list of Markdown snippets.
-
-## For more information
-
-* [Visual Studio Code's Markdown Support](http://code.visualstudio.com/docs/languages/markdown)
-* [Markdown Syntax Reference](https://help.github.com/articles/markdown-basics/)
-
-**Enjoy!**
+This project is licensed under the MIT License. See the [LICENSE](LICENSE) file for details.
