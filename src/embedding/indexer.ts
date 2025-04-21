@@ -4,12 +4,13 @@ import * as path from 'path';
 import { getSymbolContextWithParents, generateFingerprint, symbolIsTooSmall, EmbeddedChunk, parseHTMLSymbols, extractCenteredCode, collectDocumentsFromWorkspace } from '../utils/embeddingUtils';
 import { startEmbeddingServer } from './server';
 import { global } from '../extension';
+import { logger } from '../utils/logger';
 
 const EMBEDDING_FILE = 'needle.embeddings.json';
 const MAX_CODE_CHUNK_SIZE = 1000; // Maximum characters allowed in a code chunk
 
 export async function updateFileEmbeddings(documents: { document: string; metadata: any }[]): Promise<void> {
-  console.log(`[Needle] Sending ${documents.length} documents to update_file_embeddings endpoint.`);
+  logger.info(`[Needle] Sending ${documents.length} documents to update_file_embeddings endpoint.`);
   const res = await fetch('http://localhost:8000/update_file_embeddings', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -18,11 +19,11 @@ export async function updateFileEmbeddings(documents: { document: string; metada
 
   if (!res.ok) {
     const errorText = await res.text();
-    console.error(`[Needle] API error ${res.status}: ${errorText}`);
+    logger.error(`[Needle] API error ${res.status}: ${errorText}`);
     throw new Error(`[Needle] Failed to update embeddings: ${res.statusText}`);
   }
 
-  console.log(`[Needle] Successfully updated embeddings.`);
+  logger.info(`[Needle] Successfully updated embeddings.`);
 }
 
 type SymbolToEmbed = {
@@ -45,7 +46,7 @@ function chunkArray<T>(arr: T[], size: number): T[][] {
 }
 
 export async function indexWorkspace(apiKey: string): Promise<void> {
-  console.log('[Needle] Indexing full workspace...');
+  logger.info('[Needle] Indexing full workspace...');
 
   const serverStarted = await startEmbeddingServer(global.extensionContext);
   if (!serverStarted) {
@@ -55,7 +56,7 @@ export async function indexWorkspace(apiKey: string): Promise<void> {
 
   const documents = await collectDocumentsFromWorkspace();
 
-  console.log(`[Needle] Collected ${documents.length} documents for embedding.`);
+  logger.info(`[Needle] Collected ${documents.length} documents for embedding.`);
   if (documents.length > 0) {
     await updateFileEmbeddings(documents);
   }
@@ -63,7 +64,7 @@ export async function indexWorkspace(apiKey: string): Promise<void> {
 
 export function setupFileWatcher(context: vscode.ExtensionContext): void {
   vscode.workspace.onDidSaveTextDocument(async (doc) => {
-    console.log(`[Needle] File saved: ${doc.uri.fsPath}`);
+    logger.info(`[Needle] File saved: ${doc.uri.fsPath}`);
     if (!vscode.workspace.workspaceFolders) return;
 
     const fileExtension = path.extname(doc.uri.fsPath);
@@ -118,11 +119,11 @@ export function setupFileWatcher(context: vscode.ExtensionContext): void {
       });
     }
 
-    console.log(`[Needle] Re-embedding ${documents.length} updated symbols from ${doc.uri.fsPath}`);
+    logger.info(`[Needle] Re-embedding ${documents.length} updated symbols from ${doc.uri.fsPath}`);
     if (documents.length === 0) return;
 
     await updateFileEmbeddings(documents);
     vscode.window.showInformationMessage(`Needle re-indexed ${documents.length} chunks from ${path.basename(doc.uri.fsPath)}`);
-    console.log(`[Needle] Successfully updated embeddings for ${doc.uri.fsPath}`);
+    logger.info(`[Needle] Successfully updated embeddings for ${doc.uri.fsPath}`);
   }, null, context.subscriptions);
 }

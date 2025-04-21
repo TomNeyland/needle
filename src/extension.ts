@@ -7,6 +7,7 @@ import { startEmbeddingServer, stopEmbeddingServer } from './embedding/server';
 import { setupFileWatcher } from './embedding/indexer';
 import { regenerateEmbeddings } from './embedding/regenerator';
 import { isWorkspaceReady, getOpenAIKey } from './utils/configUtils';
+import { logger } from './utils/logger';
 
 export const global = { 
   extensionContext: undefined as unknown as vscode.ExtensionContext 
@@ -16,8 +17,8 @@ let searchSidebarProvider: SearchSidebarViewProvider;
 let statusBarItem: vscode.StatusBarItem;
 
 export async function activate(context: vscode.ExtensionContext) {
-  console.log('🔍 [Needle] Activating extension on ' + process.platform);
-  console.log('🔍 [Needle] Extension path: ' + context.extensionPath);
+  logger.info('Activating extension on ' + process.platform);
+  logger.info('Extension path: ' + context.extensionPath);
 
   if (!isWorkspaceReady()) {
     vscode.window.showErrorMessage('Needle: Workspace is not ready. Please open a folder or workspace.');
@@ -29,7 +30,7 @@ export async function activate(context: vscode.ExtensionContext) {
 
     // Check for API key first and show notification if not set
     getOpenAIKey(context, false).then(async (apiKey) => {
-      console.log('🔍 [Needle] API Key status:', apiKey ? 'Available' : 'Not set');
+      logger.info('API Key status:', apiKey ? 'Available' : 'Not set');
       
       // If API key is not set, show a notification in the bottom right
       if (!apiKey) {
@@ -70,9 +71,9 @@ export async function activate(context: vscode.ExtensionContext) {
           // Automatically index the workspace once the server is healthy
           try {
             await vscode.commands.executeCommand('needle.regenerateEmbeddings');
-            console.log('🔍 [Needle] Workspace indexed successfully on startup.');
+            logger.info('Workspace indexed successfully on startup.');
           } catch (error) {
-            console.error('🔍 [Needle] Failed to index workspace on startup:', error);
+            logger.error('Failed to index workspace on startup:', error);
           }
         }
       });
@@ -100,7 +101,7 @@ export async function activate(context: vscode.ExtensionContext) {
           // Check for API key before regenerating embeddings
           const apiKey = await getOpenAIKey(context);
           if (!apiKey) {
-            console.log('🔍 [Needle] No API key available for regenerating embeddings');
+            logger.info('🔍 [Needle] No API key available for regenerating embeddings');
             return;
           }
           
@@ -111,7 +112,7 @@ export async function activate(context: vscode.ExtensionContext) {
       })
     );
 
-    console.log('🔍 [Needle] Extension activated successfully');
+    logger.info('🔍 [Needle] Extension activated successfully');
   } catch (error) {
     vscode.window.showErrorMessage('Needle: Error activating extension: ' + error);
   }
@@ -122,6 +123,6 @@ export function deactivate() {
     statusBarItem.dispose();
   }
   stopEmbeddingServer().catch(err => {
-    console.error('[Needle] Error stopping embedding server:', err);
+    logger.error('[Needle] Error stopping embedding server:', err);
   });
 }

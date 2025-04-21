@@ -5,6 +5,7 @@ import * as path from 'path';
 import { parseDocument } from 'htmlparser2';
 // import { Ignore } from 'ignore';
 import * as fs from 'fs';
+import { logger } from '../utils/logger';
 
 // const gitignore = Ignore();
 
@@ -319,7 +320,7 @@ export async function collectDocumentsFromWorkspace(): Promise<{ document: strin
     try {
       const filePath = file.fsPath;
       if (shouldExcludeFile(filePath)) {
-        console.log(`[Needle] Excluding file: ${filePath}`);
+        logger.info(`[Needle] Excluding file: ${filePath}`);
         continue;
       }
 
@@ -373,7 +374,7 @@ export async function collectDocumentsFromWorkspace(): Promise<{ document: strin
         });
       }
     } catch (err) {
-      console.warn(`[Needle] Failed to index ${file.fsPath}`, err);
+      logger.warn(`[Needle] Failed to index ${file.fsPath}`, err);
     }
   }
 

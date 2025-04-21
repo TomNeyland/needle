@@ -4,6 +4,7 @@ import { updateFileEmbeddings } from './indexer';
 import { collectDocumentsFromWorkspace } from '../utils/embeddingUtils';
 import * as path from 'path';
 import { global } from '../extension';
+import { logger } from '../utils/logger';
 
 /**
  * Forces a regeneration of the embeddings cache file
@@ -14,7 +15,7 @@ export async function regenerateEmbeddings(exclusionPattern: string = ''): Promi
     throw new Error('No workspace folder open.');
   }
 
-  console.log('[Needle] Starting full re-indexing...');
+  logger.info('[Needle] Starting full re-indexing...');
 
   // Ensure the server is ready
   const serverStarted = await startEmbeddingServer(global.extensionContext);
@@ -28,11 +29,11 @@ export async function regenerateEmbeddings(exclusionPattern: string = ''): Promi
   // TODO: fix this
   documents = await collectDocumentsFromWorkspace();
 
-  console.log(`[Needle] Collected ${documents.length} documents for re-embedding.`);
+  logger.info(`[Needle] Collected ${documents.length} documents for re-embedding.`);
   if (documents.length > 0) {
     await updateFileEmbeddings(documents); // Send all documents to the backend
-    console.log('[Needle] Successfully re-embedded the entire workspace.');
+    logger.info('[Needle] Successfully re-embedded the entire workspace.');
   } else {
-    console.log('[Needle] No documents to re-embed.');
+    logger.info('[Needle] No documents to re-embed.');
   }
 }

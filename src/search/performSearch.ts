@@ -6,6 +6,7 @@ import { EmbeddedChunk, parseHTMLSymbols, symbolIsTooSmall, generateFingerprint,
 import { updateFileEmbeddings, FlattenedSymbol } from '../embedding/indexer';
 import { startEmbeddingServer } from '../embedding/server';
 import { global } from '../extension';
+import { logger } from '../utils/logger';
 
 const SIMILARITY_THRESHOLD = 0.2; // Only consider results with a score above this threshold
 const MAX_RESULTS = 30; // Maximum number of results to return
@@ -41,14 +42,14 @@ function shouldExcludeFile(filePath: string, exclusionPattern: string): boolean 
       const isExcluded = regex.test(filePath);
       
       if (isExcluded) {
-        console.log(`[Needle] Excluding file: ${filePath} (matched pattern: ${pattern})`);
+        logger.info(`[Needle] Excluding file: ${filePath} (matched pattern: ${pattern})`);
         return true;
       }
     }
     
     return false;
   } catch (error) {
-    console.error(`[Needle] Invalid exclusion pattern: ${exclusionPattern}`, error);
+    logger.error(`[Needle] Invalid exclusion pattern: ${exclusionPattern}`, error);
     return false;
   }
 }
@@ -61,7 +62,7 @@ export async function performSearch(query: string, exclusionPattern?: string): P
     return [];
   }
 
-  console.log(`[Needle] Performing search for query: "${query}"`);
+  logger.info(`[Needle] Performing search for query: "${query}"`);
 
   try {
     const res = await fetch('http://localhost:8000/search', {
@@ -77,17 +78,17 @@ export async function performSearch(query: string, exclusionPattern?: string): P
 
     if (!res.ok) {
       const errorText = await res.text();
-      console.error(`[Needle] Search API error ${res.status}: ${errorText}`);
+      logger.error(`[Needle] Search API error ${res.status}: ${errorText}`);
       throw new Error(`[Needle] Failed to perform search: ${res.statusText}`);
     }
 
     const data = (await res.json()) as { results: EmbeddedChunk[] };
     const results: EmbeddedChunk[] = data.results;
 
-    console.log(`[Needle] Found ${results.length} matching chunks.`);
+    logger.info(`[Needle] Found ${results.length} matching chunks.`);
     return results.slice(0, MAX_RESULTS); // Limit to max results
   } catch (err) {
-    console.error(`[Needle] Error during search: ${err}`);
+    logger.error(`[Needle] Error during search: ${err}`);
     return [];
   }
 }

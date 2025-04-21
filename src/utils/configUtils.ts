@@ -1,4 +1,5 @@
 import * as vscode from 'vscode';
+import { logger } from '../utils/logger';
 
 /**
  * Gets the OpenAI API key from the following sources in order of precedence:
@@ -11,14 +12,14 @@ export async function getOpenAIKey(context: vscode.ExtensionContext, showPrompt:
   // Check environment variable - ONLY using the NEEDLE-specific one
   const envApiKey = process.env.NEEDLE_OPENAI_API_KEY;
   if (envApiKey) {
-    console.log('🔍 [Needle] Using API key from NEEDLE_OPENAI_API_KEY environment variable');
+    logger.info('🔍 [Needle] Using API key from NEEDLE_OPENAI_API_KEY environment variable');
     return envApiKey;
   }
   
   // Then check VS Code settings (the recommended way to store user configuration)
   const configApiKey = vscode.workspace.getConfiguration('needle').get<string>('openaiApiKey');
   if (configApiKey) {
-    console.log('🔍 [Needle] Using API key from VS Code settings');
+    logger.info('🔍 [Needle] Using API key from VS Code settings');
     return configApiKey;
   }
 
@@ -26,7 +27,7 @@ export async function getOpenAIKey(context: vscode.ExtensionContext, showPrompt:
   // and then remove it from globalState
   const stateApiKey = context.globalState.get<string>('needle.openaiApiKey');
   if (stateApiKey) {
-    console.log('🔍 [Needle] Migrating API key from extension state to VS Code settings');
+    logger.info('🔍 [Needle] Migrating API key from extension state to VS Code settings');
     await vscode.workspace.getConfiguration('needle').update('openaiApiKey', stateApiKey, vscode.ConfigurationTarget.Global);
     await context.globalState.update('needle.openaiApiKey', undefined);
     return stateApiKey;

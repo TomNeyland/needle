@@ -5,6 +5,7 @@ import * as path from 'path';
 import * as childProcess from 'child_process';
 import { createVirtualEnvironment, checkRequirementsInstalled, installRequirements } from './pythonUtils';
 import { getOpenAIKey } from '../utils/configUtils';
+import { logger } from '../utils/logger';
 
 // Python server process configuration
 let pythonProcess: childProcess.ChildProcess | undefined;
@@ -17,12 +18,12 @@ let embeddingServerPromise: Promise<boolean> | undefined;
  */
 export async function startEmbeddingServer(context: vscode.ExtensionContext): Promise<boolean> {
   if (embeddingServerPromise) {
-    console.log('[Needle] Embedding server already starting or running');
+    logger.info('Embedding server already starting or running');
     return embeddingServerPromise;
   }
 
   embeddingServerPromise = new Promise<boolean>(async (resolve) => {
-    console.log('[Needle] Starting embedding server...');
+    logger.info('Starting embedding server...');
 
     const extensionPath = context.extensionPath;
     const scriptPath = path.join(extensionPath, 'src', 'embedding', 'main.py');
@@ -39,10 +40,10 @@ export async function startEmbeddingServer(context: vscode.ExtensionContext): Pr
     // Create venv if it doesn't exist
     if (!fs.existsSync(venvPath)) {
       try {
-        console.log('[Needle] Creating virtual environment...');
+        logger.info('Creating virtual environment...');
         await createVirtualEnvironment(extensionPath, venvPath);
       } catch (err) {
-        console.error('[Needle] Failed to create virtual environment:', err);
+        logger.error('Failed to create virtual environment:', err);
         vscode.window.showErrorMessage('Needle: Failed to create Python virtual environment.');
         embeddingServerPromise = undefined;
         return resolve(false);
@@ -60,23 +61,23 @@ export async function startEmbeddingServer(context: vscode.ExtensionContext): Pr
     try {
       const requirementsInstalled = await checkRequirementsInstalled(pythonExecutable);
       if (!requirementsInstalled) {
-        console.log('[Needle] Requirements not found. Installing...');
+        logger.info('Requirements not found. Installing...');
         await installRequirements(pythonExecutable, requirementsPath);
       }
     } catch (err) {
-      console.error('[Needle] Failed to check or install requirements:', err);
+      logger.error('Failed to check or install requirements:', err);
       vscode.window.showErrorMessage('Needle: Failed to install Python dependencies.');
       embeddingServerPromise = undefined;
       return resolve(false);
     }
 
     // Start the Python server with proper environment variables
-    console.log(`[Needle] Using Python at: ${pythonExecutable}`);
-    console.log(`[Needle] Running script: ${scriptPath}`);
+    logger.info(`Using Python at: ${pythonExecutable}`);
+    logger.info(`Running script: ${scriptPath}`);
 
     // Get the API key using our consistent method
     let needleApiKey = await getOpenAIKey(context, false);
-    console.log(`[Needle] API key available for server: ${needleApiKey ? 'Yes' : 'No'}`);
+    logger.info(`API key available for server: ${needleApiKey ? 'Yes' : 'No'}`);
 
     pythonProcess = childProcess.spawn(pythonExecutable, [scriptPath], {
       cwd: extensionPath,
@@ -92,7 +93,7 @@ export async function startEmbeddingServer(context: vscode.ExtensionContext): Pr
 
     pythonProcess.stdout?.on('data', (data) => {
       const output = data.toString().trim();
-      console.log(`[Embedding Server] ${output}`);
+      logger.info(`[Embedding Server] ${output}`);
 
       // Check if the output contains a message indicating the server is running
       if (output.includes('Application startup complete')) {
@@ -102,7 +103,7 @@ export async function startEmbeddingServer(context: vscode.ExtensionContext): Pr
 
     pythonProcess.stderr?.on('data', (data) => {
       const errorMsg = data.toString().trim();
-      console.error(`[Embedding Server Error] ${errorMsg}`);
+      logger.error(`[Embedding Server Error] ${errorMsg}`);
 
       // Check if the output contains a message indicating the server is running
       if (errorMsg.includes('Application startup complete.')) {
@@ -116,14 +117,14 @@ export async function startEmbeddingServer(context: vscode.ExtensionContext): Pr
     });
 
     pythonProcess.on('error', (err) => {
-      console.error('[Needle] Failed to start embedding server:', err);
+      logger.error('Failed to start embedding server:', err);
       pythonProcess = undefined;
       embeddingServerPromise = undefined;
       resolve(false);
     });
 
     pythonProcess.on('exit', (code) => {
-      console.log(`[Needle] Embedding server exited with code ${code}`);
+      logger.info(`Embedding server exited with code ${code}`);
       pythonProcess = undefined;
       embeddingServerPromise = undefined;
     });
@@ -137,7 +138,7 @@ export async function startEmbeddingServer(context: vscode.ExtensionContext): Pr
  */
 export async function stopEmbeddingServer(): Promise<void> {
   if (pythonProcess) {
-    console.log('[Needle] Stopping embedding server...');
+    logger.info('Stopping embedding server...');
     pythonProcess.kill('SIGTERM');
     pythonProcess = undefined;
   }

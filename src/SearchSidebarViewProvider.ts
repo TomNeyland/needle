@@ -2,6 +2,7 @@
 import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
+import { logger } from './utils/logger';
 
 export class SearchSidebarViewProvider implements vscode.WebviewViewProvider {
   private _view?: vscode.WebviewView;
@@ -23,11 +24,11 @@ export class SearchSidebarViewProvider implements vscode.WebviewViewProvider {
 
     webviewView.webview.onDidReceiveMessage(async message => {
       if (message.type === 'debug') {
-        console.log('Generated HTML:', webviewView.webview.html);
+        logger.info('Generated HTML:', webviewView.webview.html);
       } else if (message.type === 'search') {
         const query = message.query;
         const exclusionPattern = message.exclusionPattern || '';
-        console.log(`[Needle] Received search request with query: "${query}" and exclusion pattern: "${exclusionPattern}"`);
+        logger.info(`[Needle] Received search request with query: "${query}" and exclusion pattern: "${exclusionPattern}"`);
         
         // Check if we have an API key first
         const apiKey = await vscode.commands.executeCommand('needle.getOpenAIKey');
@@ -58,7 +59,7 @@ export class SearchSidebarViewProvider implements vscode.WebviewViewProvider {
         editor.selection = new vscode.Selection(range.start, range.end);
       } else if (message.type === 'regenerateEmbeddings') {
         const exclusionPattern = message.exclusionPattern || '';
-        console.log(`[Needle] Regenerating embeddings with exclusion pattern: "${exclusionPattern}"`);
+        logger.info(`[Needle] Regenerating embeddings with exclusion pattern: "${exclusionPattern}"`);
         try {
           await vscode.window.withProgress(
             {
@@ -101,8 +102,8 @@ export class SearchSidebarViewProvider implements vscode.WebviewViewProvider {
     const htmlPath = vscode.Uri.joinPath(this.context.extensionUri, 'src', 'searchSidebar', 'sidebar.html');
     const cssPath = vscode.Uri.joinPath(this.context.extensionUri, 'src', 'searchSidebar', 'sidebar.css');
     
-    console.log('Loading HTML from:', htmlPath.fsPath);
-    console.log('Loading CSS from:', cssPath.fsPath);
+    logger.info('Loading HTML from:', htmlPath.fsPath);
+    logger.info('Loading CSS from:', cssPath.fsPath);
     
     // Convert to webview URIs
     const cssUri = webview.asWebviewUri(cssPath);

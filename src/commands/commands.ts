@@ -3,6 +3,7 @@ import * as vscode from 'vscode';
 import { performSearch } from '../search/performSearch';
 import { regenerateEmbeddings } from '../embedding/regenerator';
 import { getOpenAIKey } from '../utils/configUtils';
+import { logger } from '../utils/logger';
 
 export function registerCommands(context: vscode.ExtensionContext) {
   // Register the command to set the API key
@@ -88,7 +89,7 @@ export function registerCommands(context: vscode.ExtensionContext) {
 
   // Register the performSearch command
   const performSearchCommand = vscode.commands.registerCommand('needle.performSearch', async (query: string, exclusionPattern: string = '') => {
-    console.log(`[Needle] Command received: performSearch with query "${query}" and exclusion "${exclusionPattern}"`);
+    logger.info(`[Needle] Command received: performSearch with query "${query}" and exclusion "${exclusionPattern}"`);
     return await performSearch(query, exclusionPattern);
   });
 
