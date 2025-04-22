@@ -90,9 +90,16 @@
       <button id="searchButton" type="submit">Search</button>
     </form>
     
-    <div class="exclusion-container">
-      <label for="exclusionInput">Exclude:</label>
-      <input id="exclusionInput" type="text" placeholder="e.g., *.{json,md,txt}" title="Regex pattern to exclude files from search" />
+    <div class="filter-container">
+      <div class="include-container">
+        <label for="inclusionInput">Include:</label>
+        <input id="inclusionInput" type="text" placeholder="e.g., src/**/*.ts" title="Regex pattern to include only specific files in search" />
+      </div>
+      
+      <div class="exclusion-container">
+        <label for="exclusionInput">Exclude:</label>
+        <input id="exclusionInput" type="text" placeholder="e.g., *.{json,md,txt}" title="Regex pattern to exclude files from search" />
+      </div>
     </div>
     
     <div class="actions-container">
@@ -118,6 +125,7 @@
     const resultsContainer = document.getElementById('resultsContainer');
     const loadingIndicator = document.getElementById('loadingIndicator');
     const notification = document.getElementById('notification');
+    const inclusionInput = document.getElementById('inclusionInput');
     const exclusionInput = document.getElementById('exclusionInput');
     const serverOverlay = document.getElementById('serverOverlay');
     const serverStatus = document.getElementById('serverStatus');
@@ -133,6 +141,7 @@
     // Disable all UI controls initially until server is ready
     queryInput.disabled = true;
     searchButton.disabled = true;
+    inclusionInput.disabled = true;
     exclusionInput.disabled = true;
     regenerateButton.disabled = true;
 
@@ -157,8 +166,9 @@
 
     function search() {
       const query = document.getElementById('queryInput').value;
+      const inclusionValue = document.getElementById('inclusionInput').value.trim();
       const exclusionValue = document.getElementById('exclusionInput').value.trim();
-      console.log('UI sending search with exclusion pattern:', exclusionValue);
+      console.log('UI sending search with inclusion pattern:', inclusionValue, 'and exclusion pattern:', exclusionValue);
       
       if (query.trim() !== '') {
         loadingIndicator.style.display = 'block';
@@ -166,20 +176,23 @@
         vscode.postMessage({ 
           type: 'search', 
           query,
+          inclusionPattern: inclusionValue,
           exclusionPattern: exclusionValue
         });
       }
     }
     
     function regenerateEmbeddings() {
+      const inclusionValue = document.getElementById('inclusionInput').value.trim();
       const exclusionValue = document.getElementById('exclusionInput').value.trim();
-      console.log('UI sending regenerate with exclusion pattern:', exclusionValue);
+      console.log('UI sending regenerate with inclusion pattern:', inclusionValue, 'and exclusion pattern:', exclusionValue);
       
       notification.style.display = 'none';
       loadingIndicator.style.display = 'block';
       loadingIndicator.textContent = 'Regenerating embeddings cache...';
       vscode.postMessage({ 
         type: 'regenerateEmbeddings',
+        inclusionPattern: inclusionValue,
         exclusionPattern: exclusionValue
       });
     }
@@ -199,6 +212,7 @@
         // Server is ready, enable the UI and hide the overlay
         queryInput.disabled = false;
         searchButton.disabled = false;
+        inclusionInput.disabled = false;
         exclusionInput.disabled = false;
         regenerateButton.disabled = false;
         

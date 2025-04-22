@@ -50,8 +50,9 @@ export class SearchSidebarViewProvider implements vscode.WebviewViewProvider {
         logger.info('Generated HTML:', webviewView.webview.html);
       } else if (message.type === 'search') {
         const query = message.query;
+        const inclusionPattern = message.inclusionPattern || '';
         const exclusionPattern = message.exclusionPattern || '';
-        logger.info(`[Needle] Received search request with query: "${query}" and exclusion pattern: "${exclusionPattern}"`);
+        logger.info(`[Needle] Received search request with query: "${query}", inclusion pattern: "${inclusionPattern}" and exclusion pattern: "${exclusionPattern}"`);
         
         // Check if we have an API key first
         const apiKey = await vscode.commands.executeCommand('needle.getOpenAIKey');
@@ -66,7 +67,8 @@ export class SearchSidebarViewProvider implements vscode.WebviewViewProvider {
         const results = await vscode.commands.executeCommand(
           'needle.performSearch', 
           query, 
-          exclusionPattern.toString()
+          exclusionPattern.toString(),
+          inclusionPattern.toString()
         );
         this.postSearchResults(results as any);
       } else if (message.type === 'openFile') {
@@ -81,8 +83,9 @@ export class SearchSidebarViewProvider implements vscode.WebviewViewProvider {
         editor.revealRange(range, vscode.TextEditorRevealType.InCenter);
         editor.selection = new vscode.Selection(range.start, range.end);
       } else if (message.type === 'regenerateEmbeddings') {
+        const inclusionPattern = message.inclusionPattern || '';
         const exclusionPattern = message.exclusionPattern || '';
-        logger.info(`[Needle] Regenerating embeddings with exclusion pattern: "${exclusionPattern}"`);
+        logger.info(`[Needle] Regenerating embeddings with inclusion pattern: "${inclusionPattern}" and exclusion pattern: "${exclusionPattern}"`);
         try {
           await vscode.window.withProgress(
             {
@@ -91,7 +94,7 @@ export class SearchSidebarViewProvider implements vscode.WebviewViewProvider {
               cancellable: false
             },
             async () => {
-              await vscode.commands.executeCommand('needle.regenerateEmbeddings', exclusionPattern);
+              await vscode.commands.executeCommand('needle.regenerateEmbeddings', exclusionPattern, inclusionPattern);
             }
           );
           this.postMessage({ type: 'regenerationSuccess' });

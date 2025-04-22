@@ -55,14 +55,61 @@ function shouldExcludeFile(filePath: string, exclusionPattern: string): boolean 
 }
 
 /**
+ * Checks if a file path should be included based on a regex pattern
+ * @param filePath The file path to check
+ * @param inclusionPattern The regex pattern to match against
+ * @returns True if the file should be included, false if it doesn't match the inclusion pattern
+ */
+function shouldIncludeFile(filePath: string, inclusionPattern: string): boolean {
+  if (!inclusionPattern) return true; // If no inclusion pattern, include all files
+  
+  try {
+    // Split by comma to support multiple patterns like "ts, js"
+    const patterns = inclusionPattern.split(',').map(p => p.trim()).filter(p => p);
+    
+    // If no valid patterns after filtering, include all files
+    if (patterns.length === 0) return true;
+    
+    for (const pattern of patterns) {
+      // Convert glob patterns like src/**/*.ts to proper regex
+      let regexPattern = pattern
+        .replace(/\./g, '\\.')
+        .replace(/\*/g, '.*')
+        .replace(/\{([^}]+)\}/g, (_, group) => `(${group.split(',').join('|')})`)
+        .trim();
+      
+      // If pattern is not a complete regex, wrap it to match anywhere in path
+      if (!regexPattern.startsWith('^')) {
+        regexPattern = `.*${regexPattern}`;
+      }
+      
+      const regex = new RegExp(regexPattern, 'i');
+      const isIncluded = regex.test(filePath);
+      
+      if (isIncluded) {
+        logger.info(`[Needle] Including file: ${filePath} (matched pattern: ${pattern})`);
+        return true;
+      }
+    }
+    
+    // If no patterns matched, exclude the file
+    logger.info(`[Needle] Skipping file: ${filePath} (didn't match any inclusion patterns)`);
+    return false;
+  } catch (error) {
+    logger.error(`[Needle] Invalid inclusion pattern: ${inclusionPattern}`, error);
+    return true; // On error, default to including files
+  }
+}
+
+/**
  * Performs semantic search based on a query and returns matching code chunks
  */
-export async function performSearch(query: string, exclusionPattern?: string): Promise<EmbeddedChunk[]> {
+export async function performSearch(query: string, exclusionPattern?: string, inclusionPattern?: string): Promise<EmbeddedChunk[]> {
   if (!query) {
     return [];
   }
 
-  logger.info(`[Needle] Performing search for query: "${query}"`);
+  logger.info(`[Needle] Performing search for query: "${query}", inclusion pattern: "${inclusionPattern || ''}", exclusion pattern: "${exclusionPattern || ''}"`);
 
   try {
     const res = await fetch(`${SERVER_URL}/search`, {
@@ -72,7 +119,8 @@ export async function performSearch(query: string, exclusionPattern?: string): P
         query,
         max_results: MAX_RESULTS,
         similarity_threshold: SIMILARITY_THRESHOLD,
-        exclusion_pattern: exclusionPattern || "" // Pass the exclusion pattern if provided
+        exclusion_pattern: exclusionPattern || "", // Pass the exclusion pattern if provided
+        inclusion_pattern: inclusionPattern || ""  // Pass the inclusion pattern if provided
       })
     });
 

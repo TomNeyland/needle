@@ -42,6 +42,7 @@ class SearchQuery(BaseModel):
     max_results: int = 15
     similarity_threshold: float = 0.2
     exclusion_pattern: str = ""  # Optional field for exclusion patterns
+    inclusion_pattern: str = ""  # Optional field for inclusion patterns
 
 @app.get("/healthz")
 def health_check():
@@ -123,6 +124,13 @@ async def search_embeddings(input: SearchQuery):
                     if should_exclude_file(file_path, exclusion_pattern):
                         continue
 
+                # Check inclusion pattern if provided
+                if hasattr(input, 'inclusion_pattern') and input.inclusion_pattern:
+                    inclusion_pattern = input.inclusion_pattern
+                    file_path = metadata.get("filePath", "")
+                    if not should_include_file(file_path, inclusion_pattern):
+                        continue
+
                 filtered_results.append({
                     "embedding": [],  # Embedding is not returned for search results
                     "code": doc,
@@ -159,6 +167,31 @@ def should_exclude_file(file_path: str, exclusion_pattern: str) -> bool:
     except Exception as e:
         print(f"[ERROR] Invalid exclusion pattern: {exclusion_pattern}", e)
         return False
+
+def should_include_file(file_path: str, inclusion_pattern: str) -> bool:
+    if not inclusion_pattern:
+        return True  # If no inclusion pattern, include all files
+    
+    try:
+        # Split by comma to support multiple patterns
+        patterns = [pattern.strip() for pattern in inclusion_pattern.split(',') if pattern.strip()]
+        
+        # If no valid patterns after filtering, include all files
+        if not patterns:
+            return True
+        
+        for pattern in patterns:
+            # Convert glob patterns to proper regex
+            regex_pattern = pattern.replace('.', '\\.').replace('*', '.*').replace('{', '(').replace('}', ')').replace(',', '|')
+            regex = re.compile(regex_pattern, re.IGNORECASE)
+            if regex.search(file_path):
+                return True
+        
+        # If no patterns matched, exclude the file
+        return False
+    except Exception as e:
+        print(f"[ERROR] Invalid inclusion pattern: {inclusion_pattern}", e)
+        return True  # On error, default to including files
 
 if __name__ == "__main__":
     # Get port from environment variable or use default
