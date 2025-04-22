@@ -70,12 +70,13 @@ export async function startEmbeddingServer(context: vscode.ExtensionContext): Pr
       return resolve(false);
     }
 
+    // Show setup notification at the beginning of the process
+    showSetupNotification('Setting up Needle embedding server...');
+
     // Create venv if it doesn't exist
     if (!fs.existsSync(venvPath)) {
       try {
         logger.info('Creating virtual environment...');
-        // Show setup notification
-        showSetupNotification('Setting up Needle embedding server...');
         await createVirtualEnvironment(extensionPath, venvPath);
       } catch (err) {
         // Hide notification if there was an error
@@ -99,11 +100,9 @@ export async function startEmbeddingServer(context: vscode.ExtensionContext): Pr
       const requirementsInstalled = await checkRequirementsInstalled(pythonExecutable);
       if (!requirementsInstalled) {
         logger.info('Requirements not found. Installing...');
-        // Show setup notification for installing dependencies
+        // Update setup notification for installing dependencies
         showSetupNotification('Installing Needle\'s required dependencies (this may take a few minutes)...');
         await installRequirements(pythonExecutable, requirementsPath);
-        // Hide notification after dependencies are installed
-        hideSetupNotification();
       }
     } catch (err) {
       // Hide notification if there was an error
@@ -117,6 +116,9 @@ export async function startEmbeddingServer(context: vscode.ExtensionContext): Pr
     // Start the Python server with proper environment variables
     logger.info(`Using Python at: ${pythonExecutable}`);
     logger.info(`Running script: ${scriptPath}`);
+    
+    // Update setup notification for starting server
+    showSetupNotification('Starting Needle server...');
 
     // Get the API key using our consistent method
     let needleApiKey = await getOpenAIKey(context, false);
@@ -155,10 +157,12 @@ export async function startEmbeddingServer(context: vscode.ExtensionContext): Pr
       logger.error(`[Embedding Server Error] ${errorMsg}`);
 
       // Check if the output contains a message indicating the server is running
-      if (errorMsg.includes('Application startup complete.')) {
+      if (errorMsg.includes('Application startup complete')) {
         // Update server status to Ready
         currentServerStatus = ServerStatus.Ready;
         serverStatusEmitter.fire(ServerStatus.Ready);
+        // Hide the setup notification now that server is ready
+        hideSetupNotification();
         resolve(true);
       }
 
@@ -167,6 +171,7 @@ export async function startEmbeddingServer(context: vscode.ExtensionContext): Pr
         // Update server status to Failed
         currentServerStatus = ServerStatus.Failed;
         serverStatusEmitter.fire(ServerStatus.Failed);
+        hideSetupNotification();
         resolve(false);
       }
     });
@@ -214,28 +219,20 @@ export async function stopEmbeddingServer(): Promise<void> {
 let progressResolve: ((value: void) => void) | undefined;
 
 function showSetupNotification(message: string): void {
-  // Dispose existing notification if it exists
+  // Notifications disabled - just log the message
+  logger.info(`Setup notification (disabled): ${message}`);
+  
+  // Clear any existing notification
   if (setupNotification) {
     setupNotification.dispose();
+    setupNotification = undefined;
   }
   
-  // Create a new status bar item
-  setupNotification = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 200);
-  setupNotification.text = `$(sync~spin) Needle: ${message}`;
-  setupNotification.tooltip = 'Needle is setting up required components for semantic search';
-  setupNotification.show();
-  
-  // Also show an information message that doesn't block the UI
-  vscode.window.withProgress({
-    location: vscode.ProgressLocation.Notification,
-    title: `Needle: ${message}`,
-    cancellable: false
-  }, () => {
-    // Store the resolve function so we can call it when setup is complete
-    return new Promise<void>(resolve => {
-      progressResolve = resolve;
-    });
-  });
+  // Clean up any existing progress resolve
+  if (progressResolve) {
+    progressResolve();
+    progressResolve = undefined;
+  }
 }
 
 /**
@@ -251,21 +248,8 @@ function hideSetupNotification(): void {
   if (setupNotification) {
     setupNotification.dispose();
     setupNotification = undefined;
-    
-    // Show a happy success message that will auto-dismiss after 10 seconds
-    const successNotification = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 200);
-    successNotification.text = `$(check) $(heart) Needle is ready to go!`;
-    successNotification.tooltip = 'Needle setup completed successfully';
-    successNotification.backgroundColor = new vscode.ThemeColor('statusBarItem.prominentBackground');
-    successNotification.color = new vscode.ThemeColor('statusBarItem.prominentForeground');
-    successNotification.show();
-    
-    // Show a static notification that will auto-dismiss after 10 seconds
-    vscode.window.showInformationMessage("✨ Needle is ready for semantic search! ✨", { modal: false });
-    
-    // Auto-dismiss the success notification after 10 seconds
-    setTimeout(() => {
-      successNotification.dispose();
-    }, 10000);
   }
+  
+  // Log that we would have shown a success message
+  logger.info('Needle setup completed (success notification disabled)');
 }
