@@ -6,11 +6,11 @@ const { execSync } = require('child_process');
 
 // Define paths
 const gitHooksDir = path.join(__dirname, '..', '.git', 'hooks');
-const preCommitSource = path.join(__dirname, 'pre-commit');
-const preCommitTarget = path.join(gitHooksDir, 'pre-commit');
+const prePushSource = path.join(__dirname, 'pre-push');
+const prePushTarget = path.join(gitHooksDir, 'pre-push');
 
-// Create the pre-commit hook content - properly escape $ for shell variables
-const preCommitContent = `#!/bin/bash
+// Create the pre-push hook content - properly escape $ for shell variables
+const prePushContent = `#!/bin/bash
 
 # Get the current version from package.json
 CURRENT_VERSION=\$(node -p "require('./package.json').version")
@@ -34,8 +34,9 @@ packageJson.version = '\${NEW_VERSION}';
 fs.writeFileSync('./package.json', JSON.stringify(packageJson, null, 2) + '\\n');
 "
 
-# Stage the updated package.json
+# Stage and commit the updated package.json
 git add package.json
+git commit -m "Bump version to \${NEW_VERSION}" --no-verify
 
 echo "Bumped version from \$CURRENT_VERSION to \$NEW_VERSION"
 `;
@@ -46,21 +47,21 @@ if (!fs.existsSync(gitHooksDir)) {
   fs.mkdirSync(gitHooksDir, { recursive: true });
 }
 
-// First create the pre-commit hook file in scripts folder
-fs.writeFileSync(preCommitSource, preCommitContent);
-console.log(`Created pre-commit hook script at ${preCommitSource}`);
+// First create the pre-push hook file in scripts folder
+fs.writeFileSync(prePushSource, prePushContent);
+console.log(`Created pre-push hook script at ${prePushSource}`);
 
 // Copy to git hooks directory
-fs.copyFileSync(preCommitSource, preCommitTarget);
-console.log(`Installed pre-commit hook to ${preCommitTarget}`);
+fs.copyFileSync(prePushSource, prePushTarget);
+console.log(`Installed pre-push hook to ${prePushTarget}`);
 
 // Make the hook executable
 try {
-  execSync(`chmod +x ${preCommitTarget}`);
-  console.log('Made pre-commit hook executable');
+  execSync(`chmod +x ${prePushTarget}`);
+  console.log('Made pre-push hook executable');
 } catch (error) {
-  console.error('Failed to make pre-commit hook executable:', error);
-  console.log('Please run: chmod +x .git/hooks/pre-commit');
+  console.error('Failed to make pre-push hook executable:', error);
+  console.log('Please run: chmod +x .git/hooks/pre-push');
 }
 
-console.log('Git pre-commit hook installation complete!');
+console.log('Git pre-push hook installation complete!');
