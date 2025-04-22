@@ -38,10 +38,18 @@ export async function getOpenAIKey(context: vscode.ExtensionContext, showPrompt:
     const response = await vscode.window.showInformationMessage(
       'Needle: OpenAI API Key is required for semantic search.',
       'Set API Key',
+      'Create',
       'Dismiss'
     );
 
     if (response === 'Set API Key') {
+      await vscode.commands.executeCommand('needle.setApiKey');
+      // Try again after user sets it
+      return getOpenAIKey(context, false);
+    } else if (response === 'Create') {
+      // Open the browser to create an API key
+      await vscode.env.openExternal(vscode.Uri.parse('https://platform.openai.com/settings/organization/api-keys'));
+      // Then prompt the user to enter it when they come back
       await vscode.commands.executeCommand('needle.setApiKey');
       // Try again after user sets it
       return getOpenAIKey(context, false);

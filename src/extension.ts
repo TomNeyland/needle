@@ -35,15 +35,22 @@ export async function activate(context: vscode.ExtensionContext) {
       // If API key is not set, show a non-modal notification
       if (!apiKey) {
         const setKeyAction = 'Set API Key';
+        const createKeyAction = 'Create';
         const dismissAction = 'Dismiss';
         
         // Show a non-modal notification 
         vscode.window.showInformationMessage(
           'Needle needs an OpenAI API key to enable semantic search.',
           setKeyAction,
+          createKeyAction,
           dismissAction
         ).then(async (selection) => {
           if (selection === setKeyAction) {
+            await vscode.commands.executeCommand('needle.setApiKey');
+          } else if (selection === createKeyAction) {
+            // Open the browser to create an API key
+            await vscode.env.openExternal(vscode.Uri.parse('https://platform.openai.com/settings/organization/api-keys'));
+            // Then prompt the user to enter it when they come back
             await vscode.commands.executeCommand('needle.setApiKey');
           }
         });
