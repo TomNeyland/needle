@@ -18,7 +18,17 @@ export function registerCommands(context: vscode.ExtensionContext) {
     if (apiKey) {
       // Store in VS Code settings (recommended approach)
       await vscode.workspace.getConfiguration('needle').update('openaiApiKey', apiKey, vscode.ConfigurationTarget.Global);
-      vscode.window.showInformationMessage('Needle: API Key saved successfully');
+      
+      // Show success message with reload option
+      const reload = await vscode.window.showInformationMessage(
+        'Needle: API Key saved successfully. Reload VS Code window to apply changes?', 
+        'Reload',
+        'Later'
+      );
+      
+      if (reload === 'Reload') {
+        await vscode.commands.executeCommand('workbench.action.reloadWindow');
+      }
     }
   });
 

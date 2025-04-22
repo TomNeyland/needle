@@ -32,24 +32,23 @@ export async function activate(context: vscode.ExtensionContext) {
     getOpenAIKey(context, false).then(async (apiKey) => {
       logger.info('API Key status:', apiKey ? 'Available' : 'Not set');
       
-      // If API key is not set, show a notification in the bottom right
+      // If API key is not set, show a non-modal notification
       if (!apiKey) {
         const setKeyAction = 'Set API Key';
         const dismissAction = 'Dismiss';
         
-        // Use the modal option to ensure it's prominently displayed
-        const notification = await vscode.window.showInformationMessage(
+        // Show a non-modal notification 
+        vscode.window.showInformationMessage(
           'Needle needs an OpenAI API key to enable semantic search.',
-          { modal: true },
           setKeyAction,
           dismissAction
-        );
+        ).then(async (selection) => {
+          if (selection === setKeyAction) {
+            await vscode.commands.executeCommand('needle.setApiKey');
+          }
+        });
         
-        if (notification === setKeyAction) {
-          await vscode.commands.executeCommand('needle.setApiKey');
-        }
-        
-        // Also add a status bar notification that persists
+        // Add a persistent status bar item
         const statusItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 110);
         statusItem.text = "$(key) Set API Key";
         statusItem.tooltip = "Set OpenAI API Key for Needle";
@@ -57,10 +56,10 @@ export async function activate(context: vscode.ExtensionContext) {
         statusItem.backgroundColor = new vscode.ThemeColor('statusBarItem.warningBackground');
         statusItem.show();
         
-        // Keep it visible for 1 minute
+        // Keep it visible for 2 minutes to give user time to notice it
         setTimeout(() => {
           statusItem.dispose();
-        }, 60000);
+        }, 120000);
       }
       
       // Start the server - it will use the API key from context even if undefined
