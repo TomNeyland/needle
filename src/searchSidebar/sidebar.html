@@ -83,6 +83,13 @@
     <div id="serverMessage">The semantic search engine is starting up. This may take a moment on first launch.</div>
   </div>
   
+  <!-- Simple indexing message that shows during the indexing phase -->
+  <div id="indexingMessage" style="display: none; text-align: center; padding: 20px;">
+    <div class="spinner"></div>
+    <div style="margin-top: 15px; font-weight: bold;">Indexing... please wait</div>
+    <div style="margin-top: 5px; font-size: 12px; opacity: 0.8;">Needle is analyzing your codebase</div>
+  </div>
+  
   <div class="search-container" style="display: none;">
     <div class="heading">Search your codebase semantically</div>
     <form id="searchForm">
@@ -219,21 +226,38 @@
         // Make the search interface visible immediately
         document.querySelector('.search-container').style.display = 'block';
         
-        // Hide the server overlay with animation
+        // Hide both overlays
+        serverOverlay.style.display = 'none';
+        document.getElementById('indexingMessage').style.display = 'none';
+        
+        // Apply animation to server overlay if it's visible
         if (serverOverlay.style.display !== 'none') {
           serverOverlay.classList.add('fadeOut');
           setTimeout(() => {
             serverOverlay.style.display = 'none';
-          }, 30);
-        } else {
-          // If overlay is already hidden, no need for animation
-          serverOverlay.style.display = 'none';
+          }, 300);
         }
+      } else if (status === 'indexing') {
+        // Server is ready but we're indexing the workspace
+        // Hide the main server overlay
+        serverOverlay.style.display = 'none';
+        
+        // Show the simple indexing message instead
+        document.getElementById('indexingMessage').style.display = 'block';
+        
+        // Keep UI hidden during indexing
+        document.body.classList.add('server-loading');
+        document.querySelector('.search-container').style.display = 'none';
+        loadingIndicator.style.display = 'none';
       } else if (status === 'starting') {
         // Server is starting
         serverStatus.textContent = 'Starting Needle...';
         serverMessage.textContent = 'The semantic search engine is starting up. This may take a moment on first launch.';
         serverOverlay.style.display = 'flex';
+        serverOverlay.classList.remove('fadeOut');
+        
+        // Hide the indexing message
+        document.getElementById('indexingMessage').style.display = 'none';
         
         // Add server loading class to body - CSS will handle hiding the UI
         document.body.classList.add('server-loading');
@@ -244,6 +268,10 @@
         serverStatus.textContent = 'Needle Setup Failed';
         serverMessage.textContent = 'There was an issue starting the semantic search engine. Please check the logs or try again later.';
         serverOverlay.style.display = 'flex';
+        serverOverlay.classList.remove('fadeOut');
+        
+        // Hide the indexing message
+        document.getElementById('indexingMessage').style.display = 'none';
         
         // Add server loading class to body - CSS will handle hiding the UI
         document.body.classList.add('server-loading');

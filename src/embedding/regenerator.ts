@@ -1,5 +1,5 @@
 import * as vscode from 'vscode';
-import { startEmbeddingServer } from './server';
+import { startEmbeddingServer, ServerStatus, currentServerStatus, serverStatusEmitter } from './server';
 import { updateFileEmbeddings } from './indexer';
 import { collectDocumentsFromWorkspace } from '../utils/embeddingUtils';
 import * as path from 'path';
@@ -22,6 +22,9 @@ export async function regenerateEmbeddings(exclusionPattern: string = ''): Promi
   if (!serverStarted) {
     throw new Error('Failed to start embedding server.');
   }
+  
+  // Update server status to indexing
+  serverStatusEmitter.fire(ServerStatus.Indexing);
 
   // Re-index the workspace and collect documents
   let documents = await collectDocumentsFromWorkspace();
@@ -36,4 +39,7 @@ export async function regenerateEmbeddings(exclusionPattern: string = ''): Promi
   } else {
     logger.info('[Needle] No documents to re-embed.');
   }
+  
+  // Set server status back to ready when embedding is complete
+  serverStatusEmitter.fire(ServerStatus.Ready);
 }

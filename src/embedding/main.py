@@ -4,7 +4,7 @@ import uvicorn
 import os
 from openai import AsyncOpenAI
 from typing import List
-from chromadb import Client
+from chromadb import EphemeralClient
 import chromadb.utils.embedding_functions as embedding_functions
 import uuid  # Import the UUID module for generating unique IDs
 import math
@@ -27,9 +27,13 @@ app = FastAPI()
 print("[INFO] Using OpenAI embeddings via text-embedding-3-small (NEEDLE_OPENAI_API_KEY)")
 
 # Initialize ChromaDB client
-chroma_client = Client()
+chroma_client = EphemeralClient()
 collection_name = "code_embeddings"
 collection = chroma_client.get_or_create_collection(name=collection_name, embedding_function=openai_ef)
+
+# Log the number of entries in the collection
+collection_count = collection.count()
+print(f"[INFO] ChromaDB collection '{collection_name}' contains {collection_count} entries")
 
 class BatchCodeInput(BaseModel):
     codes: List[str]

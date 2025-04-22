@@ -21,7 +21,8 @@ export enum ServerStatus {
   NotStarted = 'not_started',
   Starting = 'starting',
   Ready = 'ready',
-  Failed = 'failed'
+  Failed = 'failed',
+  Indexing = 'indexing'
 }
 
 export let currentServerStatus: ServerStatus = ServerStatus.NotStarted;

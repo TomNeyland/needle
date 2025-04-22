@@ -112,7 +112,7 @@ try:
     import fastapi
     import uvicorn
     import openai
-    import chromadb
+    import chromadbs
     print("Dependencies found")
 except ImportError as e:
     print(f"Dependencies not found: {str(e)}")
