@@ -3,7 +3,7 @@
   "displayName": "Needle",
   "description": "Semantic search for vscode",
   "icon": "media/icon-large.png",
-  "version": "0.0.15",
+  "version": "0.0.16",
   "engines": {
     "vscode": "^1.98.0"
   },
