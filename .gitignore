@@ -74,3 +74,4 @@ coverage/
 .nyc_output/
 *.lcov
 .venv
+dist
