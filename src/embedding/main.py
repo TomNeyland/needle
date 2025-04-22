@@ -10,7 +10,7 @@ import uuid  # Import the UUID module for generating unique IDs
 import math
 import re  # Import the re module for regex operations
 
-BATCH_SIZE = 100
+BATCH_SIZE = 25
 
 # Get OpenAI API key from environment variable
 NEEDLE_OPENAI_API_KEY = os.getenv("NEEDLE_OPENAI_API_KEY")
@@ -80,8 +80,8 @@ async def update_file_embeddings(input: FileEmbeddingInput):
 
         # Prepare data for a single batch call
         ids = [str(uuid.uuid4().hex) for _ in input.documents]
-        # Truncate documents to a maximum of 3000 characters
-        documents = [doc["document"][:2000] for doc in input.documents]
+        # Truncate documents to a maximum of 1000 characters
+        documents = [doc["document"][:1000] for doc in input.documents]
         metadatas = [doc["metadata"] for doc in input.documents]
 
         # Process in batches of BATCH_SIZE
