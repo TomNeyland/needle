@@ -93,11 +93,14 @@ async def update_file_embeddings(input: FileEmbeddingInput):
             end_idx = min((i + 1) * BATCH_SIZE, total_docs)
             
             # Add current batch
-            collection.add(
-                ids=ids[start_idx:end_idx],
-                documents=documents[start_idx:end_idx],
-                metadatas=metadatas[start_idx:end_idx]
-            )
+            try:
+                collection.add(
+                    ids=ids[start_idx:end_idx],
+                    documents=documents[start_idx:end_idx],
+                    metadatas=metadatas[start_idx:end_idx]
+                )
+            except Exception as e:
+              print(e)
 
         return {"status": "success", "message": f"Updated embeddings for {len(input.documents)} documents"}
     except Exception as e:
