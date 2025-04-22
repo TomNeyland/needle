@@ -4,7 +4,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { EmbeddedChunk, parseHTMLSymbols, symbolIsTooSmall, generateFingerprint, getSymbolContextWithParents, extractCenteredCode, isMinifiedCode } from '../utils/embeddingUtils';
 import { updateFileEmbeddings, FlattenedSymbol } from '../embedding/indexer';
-import { startEmbeddingServer } from '../embedding/server';
+import { startEmbeddingServer, SERVER_URL } from '../embedding/server';
 import { global } from '../extension';
 import { logger } from '../utils/logger';
 
@@ -65,7 +65,7 @@ export async function performSearch(query: string, exclusionPattern?: string): P
   logger.info(`[Needle] Performing search for query: "${query}"`);
 
   try {
-    const res = await fetch('http://localhost:8000/search', {
+    const res = await fetch(`${SERVER_URL}/search`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({

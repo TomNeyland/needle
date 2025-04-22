@@ -6,11 +6,12 @@ import * as childProcess from 'child_process';
 import { createVirtualEnvironment, checkRequirementsInstalled, installRequirements } from './pythonUtils';
 import { getOpenAIKey } from '../utils/configUtils';
 import { logger } from '../utils/logger';
+import { findAvailablePort } from '../utils/portUtils';
 
 // Python server process configuration
 let pythonProcess: childProcess.ChildProcess | undefined;
-const SERVER_PORT = 8000;
-const SERVER_URL = `http://localhost:${SERVER_PORT}`;
+export let SERVER_PORT = 8000; // Default port, will be dynamically assigned
+export let SERVER_URL = `http://localhost:${SERVER_PORT}`; // Will be updated when port is assigned
 let embeddingServerPromise: Promise<boolean> | undefined;
 // Track setup notification
 let setupNotification: vscode.StatusBarItem | undefined;
@@ -42,8 +43,19 @@ export async function startEmbeddingServer(context: vscode.ExtensionContext): Pr
   currentServerStatus = ServerStatus.Starting;
   serverStatusEmitter.fire(ServerStatus.Starting);
 
+  // Find an available port
+  try {
+    SERVER_PORT = await findAvailablePort();
+    SERVER_URL = `http://localhost:${SERVER_PORT}`;
+    logger.info(`[Needle] Found available port: ${SERVER_PORT}`);
+  } catch (err) {
+    logger.error(`[Needle] Error finding available port: ${err}`);
+    vscode.window.showErrorMessage('Needle: Failed to find an available port for the embedding server.');
+    return false;
+  }
+
   embeddingServerPromise = new Promise<boolean>(async (resolve) => {
-    logger.info('Starting embedding server...');
+    logger.info(`Starting embedding server on port ${SERVER_PORT}...`);
 
     const extensionPath = context.extensionPath;
     const scriptPath = path.join(extensionPath, 'src', 'embedding', 'main.py');
@@ -117,6 +129,7 @@ export async function startEmbeddingServer(context: vscode.ExtensionContext): Pr
         PATH: path.join(venvPath, process.platform === 'win32' ? 'Scripts' : 'bin') + path.delimiter + process.env.PATH,
         VIRTUAL_ENV: venvPath,
         SERVER_URL: SERVER_URL,
+        NEEDLE_SERVER_PORT: SERVER_PORT.toString(), // Pass the dynamic port to Python
         NEEDLE_OPENAI_API_KEY: needleApiKey || '',
       }
     });

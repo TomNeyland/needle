@@ -2,7 +2,7 @@ import * as vscode from 'vscode';
 import * as fs from 'fs';
 import * as path from 'path';
 import { getSymbolContextWithParents, generateFingerprint, symbolIsTooSmall, EmbeddedChunk, parseHTMLSymbols, extractCenteredCode, collectDocumentsFromWorkspace } from '../utils/embeddingUtils';
-import { startEmbeddingServer } from './server';
+import { startEmbeddingServer, SERVER_URL } from './server';
 import { global } from '../extension';
 import { logger } from '../utils/logger';
 
@@ -11,7 +11,7 @@ const MAX_CODE_CHUNK_SIZE = 1000; // Maximum characters allowed in a code chunk
 
 export async function updateFileEmbeddings(documents: { document: string; metadata: any }[]): Promise<void> {
   logger.info(`[Needle] Sending ${documents.length} documents to update_file_embeddings endpoint.`);
-  const res = await fetch('http://localhost:8000/update_file_embeddings', {
+  const res = await fetch(`${SERVER_URL}/update_file_embeddings`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ documents })

@@ -161,4 +161,7 @@ def should_exclude_file(file_path: str, exclusion_pattern: str) -> bool:
         return False
 
 if __name__ == "__main__":
-    uvicorn.run(app, host="127.0.0.1", port=8000)
+    # Get port from environment variable or use default
+    port = int(os.getenv("NEEDLE_SERVER_PORT", 8000))
+    print(f"[INFO] Starting Needle embedding server on port {port}")
+    uvicorn.run(app, host="127.0.0.1", port=port)

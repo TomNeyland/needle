@@ -1,10 +1,6 @@
 // src/embedding/embeddings.ts
 import { global } from '../extension';
-import { startEmbeddingServer } from './server';
-
-// Server configuration
-const SERVER_PORT = 8000;
-const SERVER_URL = `http://localhost:${SERVER_PORT}`;
+import { startEmbeddingServer, SERVER_PORT, SERVER_URL } from './server';
 
 // Flag to track server status
 let serverReady = false;
@@ -14,7 +10,7 @@ let serverReady = false;
  */
 export async function getLocalEmbedding(text: string): Promise<number[] | null> {
   try {
-    const response = await fetch('http://localhost:8000/embed', {
+    const response = await fetch(`${SERVER_URL}/embed`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ codes: [text] }) // 🔥 wrap input as batch
