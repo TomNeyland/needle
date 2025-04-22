@@ -201,4 +201,5 @@ if __name__ == "__main__":
     # Get port from environment variable or use default
     port = int(os.getenv("NEEDLE_SERVER_PORT", 8000))
     print(f"[INFO] Starting Needle embedding server on port {port}")
-    uvicorn.run(app, host="127.0.0.1", port=port)
+    # Use a different loopback address (127.0.0.2) to prevent VS Code from displaying the server
+    uvicorn.run(app, host="127.0.0.2", port=port)
