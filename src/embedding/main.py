@@ -80,8 +80,8 @@ async def update_file_embeddings(input: FileEmbeddingInput):
 
         # Prepare data for a single batch call
         ids = [str(uuid.uuid4().hex) for _ in input.documents]
-        # Truncate documents to a maximum of 1000 characters
-        documents = [doc["document"][:1000] for doc in input.documents if doc != ""]
+
+        documents = [doc["document"] for doc in input.documents if doc != ""]
         metadatas = [doc["metadata"] for doc in input.documents if doc != ""]
 
         # Process in batches of BATCH_SIZE
