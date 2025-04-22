@@ -41,7 +41,10 @@
   </div>
   
   <div class="search-container" style="display: none;">
-    <div class="heading">Search your codebase semantically</div>
+    <div class="header-container">
+      <div class="heading">Search your codebase semantically</div>
+      <button id="regenerateButton" style="display: none !important;" class="regen-button" title="Regenerate the embeddings cache file" aria-label="Regenerate Index"></button>
+    </div>
     <form id="searchForm">
       <input id="queryInput" type="text" placeholder="Ask your code..." />
       <button id="searchButton" type="submit">Search</button>
@@ -57,10 +60,6 @@
         <label for="exclusionInput">Exclude:</label>
         <input id="exclusionInput" type="text" placeholder="e.g., *.{json,md,txt}" title="Regex pattern to exclude files from search" />
       </div>
-    </div>
-    
-    <div class="actions-container">
-      <button id="regenerateButton" class="regen-button" title="Regenerate the embeddings cache file">Regenerate Index</button>
     </div>
     
     <div id="notification" class="notification" style="display: none;"></div>
