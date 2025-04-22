@@ -47,7 +47,7 @@ export async function startEmbeddingServer(context: vscode.ExtensionContext): Pr
   // Find an available port
   try {
     SERVER_PORT = await findAvailablePort();
-    SERVER_URL = `http://127.0.0.2:${SERVER_PORT}`;
+    SERVER_URL = `http://127.0.0.1:${SERVER_PORT}`;
     logger.info(`[Needle] Found available port: ${SERVER_PORT}`);
   } catch (err) {
     logger.error(`[Needle] Error finding available port: ${err}`);
