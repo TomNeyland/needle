@@ -59,8 +59,8 @@
       </div>
     </div>
     
-    <div class="actions-container">
-      <button id="regenerateButton" style="display: none !important;" class="regen-button" title="Regenerate the embeddings cache file">Regenerate Index</button>
+    <div class="actions-container" style="display: none !important;">
+      <!-- <button id="regenerateButton" style="display: none !important;" class="regen-button" title="Regenerate the embeddings cache file">Regenerate Index</button> -->
     </div>
     
     <div id="notification" class="notification" style="display: none;"></div>
@@ -90,7 +90,7 @@
     const searchForm = document.getElementById('searchForm');
     const queryInput = document.getElementById('queryInput');
     const searchButton = document.getElementById('searchButton');
-    const regenerateButton = document.getElementById('regenerateButton');
+    // const regenerateButton = document.getElementById('regenerateButton');
     
     // Set initial UI state values - don't show or hide anything yet
     // We'll wait for the server status check before deciding what to show
@@ -100,7 +100,7 @@
     searchButton.disabled = true;
     inclusionInput.disabled = true;
     exclusionInput.disabled = true;
-    regenerateButton.disabled = true;
+    // regenerateButton.disabled = true;
 
     // Set default display states but don't apply them until we check server status
     loadingIndicator.style.display = 'none';
@@ -111,10 +111,10 @@
       search();
     });
     
-    document.getElementById('regenerateButton').addEventListener('click', (e) => {
-      e.preventDefault();
-      regenerateEmbeddings();
-    });
+    // document.getElementById('regenerateButton').addEventListener('click', (e) => {
+    //   e.preventDefault();
+    //   regenerateEmbeddings();
+    // });
 
     function search() {
       const query = document.getElementById('queryInput').value;
@@ -168,7 +168,7 @@
         searchButton.disabled = false;
         inclusionInput.disabled = false;
         exclusionInput.disabled = false;
-        regenerateButton.disabled = false;
+        // regenerateButton.disabled = false;
         
         // Remove server loading class from body
         document.body.classList.remove('server-loading');
