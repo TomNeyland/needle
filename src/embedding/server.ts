@@ -208,6 +208,9 @@ export async function stopEmbeddingServer(): Promise<void> {
 /**
  * Shows a status bar notification during first-time setup
  */
+// Track the progress notification resolve function
+let progressResolve: ((value: void) => void) | undefined;
+
 function showSetupNotification(message: string): void {
   // Dispose existing notification if it exists
   if (setupNotification) {
@@ -226,9 +229,9 @@ function showSetupNotification(message: string): void {
     title: `Needle: ${message}`,
     cancellable: false
   }, () => {
-    // Return a promise that never resolves while the setup is in progress
+    // Store the resolve function so we can call it when setup is complete
     return new Promise<void>(resolve => {
-      // The promise will be manually resolved when hideSetupNotification is called
+      progressResolve = resolve;
     });
   });
 }
@@ -237,6 +240,12 @@ function showSetupNotification(message: string): void {
  * Hides the setup notification and shows a success message
  */
 function hideSetupNotification(): void {
+  // Resolve any pending progress notification
+  if (progressResolve) {
+    progressResolve();
+    progressResolve = undefined;
+  }
+  
   if (setupNotification) {
     setupNotification.dispose();
     setupNotification = undefined;
@@ -249,29 +258,12 @@ function hideSetupNotification(): void {
     successNotification.color = new vscode.ThemeColor('statusBarItem.prominentForeground');
     successNotification.show();
     
-    // Show a non-blocking visual notification with a celebratory look
-    vscode.window.withProgress({
-      location: vscode.ProgressLocation.Notification,
-      title: "✨ Needle is ready for semantic search! ✨",
-      cancellable: false
-    }, (progress) => {
-      // Add a visual indicator of success with progress
-      for (let i = 0; i < 10; i++) {
-        setTimeout(() => {
-          progress.report({ 
-            increment: 10, 
-            message: "🔍 " + "🎉 ".repeat(i % 3 + 1)
-          });
-        }, i * 1000);
-      }
-      
-      // Auto-dismiss after 10 seconds
-      return new Promise<void>(resolve => {
-        setTimeout(() => {
-          successNotification.dispose();
-          resolve();
-        }, 10000);
-      });
-    });
+    // Show a static notification that will auto-dismiss after 10 seconds
+    vscode.window.showInformationMessage("✨ Needle is ready for semantic search! ✨", { modal: false });
+    
+    // Auto-dismiss the success notification after 10 seconds
+    setTimeout(() => {
+      successNotification.dispose();
+    }, 10000);
   }
 }
