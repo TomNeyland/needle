@@ -135,8 +135,8 @@
     const searchButton = document.getElementById('searchButton');
     const regenerateButton = document.getElementById('regenerateButton');
     
-    // Add server-loading class to body initially
-    document.body.classList.add('server-loading');
+    // Set initial UI state values - don't show or hide anything yet
+    // We'll wait for the server status check before deciding what to show
     
     // Disable all UI controls initially until server is ready
     queryInput.disabled = true;
@@ -145,13 +145,8 @@
     exclusionInput.disabled = true;
     regenerateButton.disabled = true;
 
-    // Ensure search-container is hidden initially
-    document.querySelector('.search-container').style.display = 'none';
-
-    // Ensure loadingIndicator is hidden by default
+    // Set default display states but don't apply them until we check server status
     loadingIndicator.style.display = 'none';
-
-    // Ensure resultsContainer is hidden by default
     resultsContainer.style.display = 'none';
 
     document.getElementById('searchForm').addEventListener('submit', (e) => {
@@ -208,6 +203,8 @@
     
     // Handle server status updates
     function updateServerUI(status) {
+      console.log('Updating server UI with status:', status);
+      
       if (status === 'ready') {
         // Server is ready, enable the UI and hide the overlay
         queryInput.disabled = false;
@@ -216,15 +213,22 @@
         exclusionInput.disabled = false;
         regenerateButton.disabled = false;
         
-        // Remove server loading class from body - CSS will handle showing the UI
+        // Remove server loading class from body
         document.body.classList.remove('server-loading');
         
-        // Animate overlay removal
-        serverOverlay.classList.add('fadeOut');
-        setTimeout(() => {
+        // Make the search interface visible immediately
+        document.querySelector('.search-container').style.display = 'block';
+        
+        // Hide the server overlay with animation
+        if (serverOverlay.style.display !== 'none') {
+          serverOverlay.classList.add('fadeOut');
+          setTimeout(() => {
+            serverOverlay.style.display = 'none';
+          }, 30);
+        } else {
+          // If overlay is already hidden, no need for animation
           serverOverlay.style.display = 'none';
-          document.querySelector('.search-container').style.display = 'block';
-        }, 300);
+        }
       } else if (status === 'starting') {
         // Server is starting
         serverStatus.textContent = 'Starting Needle...';
@@ -337,6 +341,17 @@
     vscode.postMessage({ 
       type: 'checkServerStatus'
     });
+    
+    // Set initial state - start with overlay showing but don't hide UI yet
+    // The updateServerUI function will adjust visibility based on server status
+    if (currentServerStatus === 'ready') {
+      // If we have persisted state indicating server is ready, initialize in ready state
+      updateServerUI('ready');
+    } else {
+      // Otherwise show the loading overlay until we get a status update
+      document.body.classList.add('server-loading');
+      serverOverlay.style.display = 'flex';
+    }
     
     // Debug server status and class application
     console.log('Initial body classes:', document.body.className);

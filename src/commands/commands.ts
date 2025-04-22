@@ -98,9 +98,9 @@ export function registerCommands(context: vscode.ExtensionContext) {
   context.subscriptions.push(smartFindCommand);
 
   // Register the performSearch command
-  const performSearchCommand = vscode.commands.registerCommand('needle.performSearch', async (query: string, exclusionPattern: string = '') => {
-    logger.info(`[Needle] Command received: performSearch with query "${query}" and exclusion "${exclusionPattern}"`);
-    return await performSearch(query, exclusionPattern);
+  const performSearchCommand = vscode.commands.registerCommand('needle.performSearch', async (query: string, exclusionPattern: string = '', inclusionPattern: string = '') => {
+    logger.info(`[Needle] Command received: performSearch with query "${query}", exclusion "${exclusionPattern}" and inclusion "${inclusionPattern}"`);
+    return await performSearch(query, exclusionPattern, inclusionPattern);
   });
 
   context.subscriptions.push(performSearchCommand);

@@ -68,6 +68,9 @@ export class SearchSidebarViewProvider implements vscode.WebviewViewProvider {
           return;
         }
         
+        // Log the inclusion and exclusion patterns before passing
+        logger.info(`[Needle] Executing search with parameters: query="${query}", exclusionPattern="${exclusionPattern}", inclusionPattern="${inclusionPattern}"`);
+        
         const results = await vscode.commands.executeCommand(
           'needle.performSearch', 
           query, 
