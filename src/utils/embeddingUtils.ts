@@ -312,7 +312,7 @@ export function extractCenteredCode(doc: vscode.TextDocument, symbolRange: vscod
 export async function collectDocumentsFromWorkspace(): Promise<{ document: string; metadata: any }[]> {
   const documents: { document: string; metadata: any }[] = [];
   const files = await vscode.workspace.findFiles(
-    /.*\.(c|h|cpp|cc|cxx|hh|hpp|hxx|rs|go|rb|erb|php|phtml|php[3-5]?|phps|js|jsx|ts|tsx|py|pyw|java|class|jar|kt|kts|swift|html|htm|css|scss|sass|sh|bash|zsh|pl|pm|t|lua|r|R|Rmd|scala|sc|dart|sql|md|json|yaml|yml|xml|hs|lhs|ex|exs|erl|hrl|cs|vb)$/i, // Include all files
+    '**/*.{c,h,cpp,cc,cxx,hh,hpp,hxx,rs,go,rb,erb,php,phtml,php[3-5]?,phps,js,jsx,ts,tsx,py,pyw,java,class,jar,kt,kts,swift,html,htm,css,scss,sass,sh,bash,zsh,pl,pm,t,lua,r,R,Rmd,scala,sc,dart,sql,md,json,yaml,yml,xml,hs,lhs,ex,exs,erl,hrl,cs,vb}', // Include all files
     '**/{node_modules,.*}/**' // Exclude node_modules and hidden directories
   );
 
