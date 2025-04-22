@@ -250,15 +250,15 @@ button:hover {
 }
 
 .success {
-  background-color: var(--vscode-debugIcon-stopForeground);
-  color: var(--vscode-editor-background);
-  border-left-color: var(--vscode-debugIcon-stopForeground);
+  background-color: var(--vscode-inputValidation-infoBackground);
+  border-left-color: var(--vscode-inputValidation-infoBorder);
+  color: var(--vscode-inputValidation-infoForeground);
 }
 
 .error {
-  background-color: var(--vscode-errorForeground);
-  color: var(--vscode-editor-foreground);
-  border-left-color: var(--vscode-editorError-foreground);
+  background-color: var(--vscode-debugIcon-stopForeground);
+  color: var(--vscode-editor-background);
+  border-left-color: var(--vscode-debugIcon-stopForeground);
 }
 
 .no-results {
@@ -313,8 +313,23 @@ button:hover {
 }
 
 #indexingMessage {
-  display: none;
-  text-align: center;
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
   padding: 30px;
+  background-color: var(--vscode-editor-background);
+  z-index: 900;
   animation: fadeIn 0.4s ease;
+}
+
+/* Add missing spinner animation keyframes */
+@keyframes spin {
+  0% { transform: rotate(0deg); }
+  100% { transform: rotate(360deg); }
 }
