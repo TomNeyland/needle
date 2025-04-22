@@ -1,4 +1,4 @@
-# Needle
+# <img src="media/icon.png" alt="Needle Logo" height="30" style="vertical-align: middle;"> Needle 
 
 Needle is an AI-powered Visual Studio Code extension that helps you find the proverbial "needle in a haystack" within your codebase. With Needle, developers can search their code using queries like "Where do we validate user inputs?" and quickly uncover relevant, ranked results.
 
