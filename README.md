@@ -5,48 +5,70 @@ Needle is an AI-powered Visual Studio Code extension that helps you find the pro
 ## Features
 
 - **Semantic Search**: Use natural language to search your codebase.
-- **Advanced Filtering**: Exclude files or directories using regex patterns.
-- **Context-Aware Results**: Results are ranked based on semantic relevance and user context.
-- **Embeddings**: Uses AI embeddings to understand code structure and relationships.
-- **Customizable**: Configure settings like embedding models, exclusion patterns, and more.
+- **Content-Aware Results**: Search results understand code context including classes, methods, and hierarchies.
+- **Intelligent Filtering**: Include or exclude files using glob patterns to narrow your search.
+- **Real-time Indexing**: Auto-indexes your workspace and updates embeddings when files change.
+- **Seamless Code Navigation**: Click on search results to jump directly to relevant code.
+
+## Requirements
+
+- Visual Studio Code 1.98.0 or higher
+- Python 3.6+
+- **An OpenAI API key** (for embedding generation)
 
 ## Installation
 
-1. Download and install the extension from the [VS Code Marketplace](https://marketplace.visualstudio.com/).
-2. Open your project in Visual Studio Code.
-3. Activate Needle from the Activity Bar or Command Palette.
+1. Install the extension from the VS Code Marketplace.
+2. Open your project in VS Code.
+3. Click on the Needle icon in the Activity Bar.
+4. Enter your OpenAI API key when prompted.
 
 ## Usage
 
-1. Open the Needle sidebar from the Activity Bar.
-2. Enter your query in the search box (e.g., "Find all API route handlers").
-3. View and interact with the ranked results.
-4. Use the "Regenerate Index" button to update embeddings after significant code changes.
+1. Click the Needle icon in the Activity Bar to open the search sidebar.
+2. Type a natural language query in the search box (e.g., "How is authentication implemented?").
+3. Optionally, provide include/exclude patterns to filter by file types or paths.
+4. Press Enter or click Search to perform the search.
+5. Click on any search result to open the corresponding file at the relevant location.
 
 ## Commands
 
-- `Needle: Smart Find` - Perform a semantic search.
-- `Needle: Regenerate Embeddings` - Rebuild the embeddings cache for your workspace.
+The extension provides the following commands:
+
+- `Needle: Smart Find` - Launch the semantic search interface (Ctrl+Shift+P, then type "Needle: Smart Find")
+- `Needle: Set OpenAI API Key` - Configure your OpenAI API key
+- `Needle: Clear OpenAI API Key` - Remove your stored API key
+- `Needle: Regenerate Embeddings Cache` - Force a re-indexing of your workspace
 
 ## Configuration
 
-Needle offers several configuration options via `settings.json`:
+Currently, Needle supports the following configuration in your VS Code settings, typically you configure this through the UI prompts though:
 
 ```json
 {
-  "Needle.embedding.provider": "openai",
-  "Needle.embedding.model": "text-embedding-3-small",
-  "Needle.exclusionPatterns": ["*.json", "*.md"]
+  "needle.openaiApiKey": "your-api-key-here"
 }
 ```
+
+The API key can also be provided through the `NEEDLE_OPENAI_API_KEY` environment variable.
+
+## How It Works
+
+Needle uses AI embeddings to understand your code semantically:
+
+1. It indexes your workspace by analyzing code structure using VS Code's DocumentSymbol API
+2. Each code chunk is embedded using OpenAI's text-embedding-3-small model
+3. Embeddings are stored in a local ChromaDB vector database
+4. When you search, your query is embedded and matched against the code embeddings
+5. Results are ranked by semantic similarity to your query
 
 ## Development
 
 ### Prerequisites
 
-- Node.js
+- Node.js 16+
 - npm
-- Python (for the embedding server)
+- Python 3.6+
 
 ### Setup
 
@@ -59,13 +81,17 @@ Needle offers several configuration options via `settings.json`:
    ```bash
    npm run watch
    ```
+4. Press F5 to launch the extension in a new VS Code window.
 
-### Testing
+### Python Dependencies
 
-Run tests using the following command:
-```bash
-npm test
-```
+The extension uses the following Python packages:
+- fastapi
+- uvicorn
+- openai
+- chromadb
+
+These will be automatically installed in a virtual environment when the extension is first run.
 
 ## Contributing
 
