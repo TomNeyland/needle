@@ -15,6 +15,20 @@ let embeddingServerPromise: Promise<boolean> | undefined;
 // Track setup notification
 let setupNotification: vscode.StatusBarItem | undefined;
 
+// Server status that can be accessed from other modules
+export enum ServerStatus {
+  NotStarted = 'not_started',
+  Starting = 'starting',
+  Ready = 'ready',
+  Failed = 'failed'
+}
+
+export let currentServerStatus: ServerStatus = ServerStatus.NotStarted;
+
+// Event emitter for server status changes
+export const serverStatusEmitter = new vscode.EventEmitter<ServerStatus>();
+export const onServerStatusChanged = serverStatusEmitter.event;
+
 /**
  * Starts the Python embedding server
  */
@@ -23,6 +37,10 @@ export async function startEmbeddingServer(context: vscode.ExtensionContext): Pr
     logger.info('Embedding server already starting or running');
     return embeddingServerPromise;
   }
+
+  // Update server status to Starting
+  currentServerStatus = ServerStatus.Starting;
+  serverStatusEmitter.fire(ServerStatus.Starting);
 
   embeddingServerPromise = new Promise<boolean>(async (resolve) => {
     logger.info('Starting embedding server...');
@@ -109,6 +127,9 @@ export async function startEmbeddingServer(context: vscode.ExtensionContext): Pr
 
       // Check if the output contains a message indicating the server is running
       if (output.includes('Application startup complete')) {
+        // Update server status to Ready
+        currentServerStatus = ServerStatus.Ready;
+        serverStatusEmitter.fire(ServerStatus.Ready);
         resolve(true);
       }
     });
@@ -119,11 +140,17 @@ export async function startEmbeddingServer(context: vscode.ExtensionContext): Pr
 
       // Check if the output contains a message indicating the server is running
       if (errorMsg.includes('Application startup complete.')) {
+        // Update server status to Ready
+        currentServerStatus = ServerStatus.Ready;
+        serverStatusEmitter.fire(ServerStatus.Ready);
         resolve(true);
       }
 
       // Check if the output contains an exit message
       if (errorMsg.toLowerCase().includes('exit')) {
+        // Update server status to Failed
+        currentServerStatus = ServerStatus.Failed;
+        serverStatusEmitter.fire(ServerStatus.Failed);
         resolve(false);
       }
     });
@@ -132,6 +159,9 @@ export async function startEmbeddingServer(context: vscode.ExtensionContext): Pr
       logger.error('Failed to start embedding server:', err);
       pythonProcess = undefined;
       embeddingServerPromise = undefined;
+      // Update server status to Failed
+      currentServerStatus = ServerStatus.Failed;
+      serverStatusEmitter.fire(ServerStatus.Failed);
       resolve(false);
     });
 
@@ -141,6 +171,9 @@ export async function startEmbeddingServer(context: vscode.ExtensionContext): Pr
       logger.info(`Embedding server exited with code ${code}`);
       pythonProcess = undefined;
       embeddingServerPromise = undefined;
+      // Update server status to NotStarted
+      currentServerStatus = ServerStatus.NotStarted;
+      serverStatusEmitter.fire(ServerStatus.NotStarted);
     });
   });
 

@@ -3,11 +3,34 @@ import * as vscode from 'vscode';
 import * as path from 'path';
 import * as fs from 'fs';
 import { logger } from './utils/logger';
+import { ServerStatus, currentServerStatus, onServerStatusChanged } from './embedding/server';
 
 export class SearchSidebarViewProvider implements vscode.WebviewViewProvider {
   private _view?: vscode.WebviewView;
+  private _disposables: vscode.Disposable[] = [];
 
-  constructor(private readonly context: vscode.ExtensionContext) {}
+  constructor(private readonly context: vscode.ExtensionContext) {
+    // Listen for server status changes
+    this._disposables.push(
+      onServerStatusChanged(status => {
+        this.updateServerStatus(status);
+      })
+    );
+  }
+
+  private updateServerStatus(status: ServerStatus) {
+    if (this._view) {
+      this._view.webview.postMessage({
+        type: 'serverStatusUpdate',
+        status
+      });
+    }
+  }
+
+  dispose() {
+    // Clean up disposables
+    this._disposables.forEach(d => d.dispose());
+  }
 
   resolveWebviewView(webviewView: vscode.WebviewView, context: vscode.WebviewViewResolveContext, _token: vscode.CancellationToken) {
     this._view = webviewView;

@@ -6,9 +6,84 @@
   <title>Needle</title>
   <link href="${cssUri}" rel="stylesheet" />
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${webview.cspSource}; style-src ${webview.cspSource}; script-src 'nonce-${nonce}';">
+  <style nonce="${nonce}">
+    /* Add server status overlay styles */
+    #serverOverlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background-color: var(--vscode-editor-background);
+      z-index: 1000;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+      text-align: center;
+      animation: fadeIn 0.3s ease-in-out;
+    }
+    
+    /* Make rest of UI invisible when overlay is active */
+    body.server-loading .search-container,
+    body.server-loading #loadingIndicator,
+    body.server-loading #resultsContainer {
+      display: none !important;
+    }
+    
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    
+    @keyframes fadeOut {
+      from { opacity: 1; }
+      to { opacity: 0; }
+    }
+    
+    .fadeOut {
+      animation: fadeOut 0.3s ease-in-out forwards;
+    }
+    
+    .spinner {
+      width: 40px;
+      height: 40px;
+      margin-bottom: 16px;
+      border: 4px solid var(--vscode-activityBar-inactiveForeground);
+      border-radius: 50%;
+      border-top: 4px solid var(--vscode-activityBar-activeBorder);
+      animation: spin 2s linear infinite;
+    }
+    
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+    
+    #serverStatus {
+      font-size: 14px;
+      margin-bottom: 10px;
+      font-weight: bold;
+    }
+    
+    #serverMessage {
+      font-size: 12px;
+      opacity: 0.8;
+      max-width: 300px;
+      margin-bottom: 20px;
+    }
+  </style>
 </head>
 <body>
-  <div class="search-container">
+  <!-- Server status overlay -->
+  <div id="serverOverlay">
+    <div class="spinner"></div>
+    <div id="serverStatus">Setting up Needle...</div>
+    <div id="serverMessage">The semantic search engine is starting up. This may take a moment on first launch.</div>
+  </div>
+  
+  <div class="search-container" style="display: none;">
     <div class="heading">Search your codebase semantically</div>
     <form id="searchForm">
       <input id="queryInput" type="text" placeholder="Ask your code..." />
@@ -31,7 +106,7 @@
     Searching code...
   </div>
   
-  <div id="resultsContainer"></div>
+  <div id="resultsContainer" style="display: none;"></div>
 
   <script nonce="${nonce}">
     // Debug utility - add to the top of your script
@@ -44,6 +119,31 @@
     const loadingIndicator = document.getElementById('loadingIndicator');
     const notification = document.getElementById('notification');
     const exclusionInput = document.getElementById('exclusionInput');
+    const serverOverlay = document.getElementById('serverOverlay');
+    const serverStatus = document.getElementById('serverStatus');
+    const serverMessage = document.getElementById('serverMessage');
+    const searchForm = document.getElementById('searchForm');
+    const queryInput = document.getElementById('queryInput');
+    const searchButton = document.getElementById('searchButton');
+    const regenerateButton = document.getElementById('regenerateButton');
+    
+    // Add server-loading class to body initially
+    document.body.classList.add('server-loading');
+    
+    // Disable all UI controls initially until server is ready
+    queryInput.disabled = true;
+    searchButton.disabled = true;
+    exclusionInput.disabled = true;
+    regenerateButton.disabled = true;
+
+    // Ensure search-container is hidden initially
+    document.querySelector('.search-container').style.display = 'none';
+
+    // Ensure loadingIndicator is hidden by default
+    loadingIndicator.style.display = 'none';
+
+    // Ensure resultsContainer is hidden by default
+    resultsContainer.style.display = 'none';
 
     document.getElementById('searchForm').addEventListener('submit', (e) => {
       e.preventDefault();
@@ -92,11 +192,55 @@
         lineEnd
       });
     }
+    
+    // Handle server status updates
+    function updateServerUI(status) {
+      if (status === 'ready') {
+        // Server is ready, enable the UI and hide the overlay
+        queryInput.disabled = false;
+        searchButton.disabled = false;
+        exclusionInput.disabled = false;
+        regenerateButton.disabled = false;
+        
+        // Remove server loading class from body - CSS will handle showing the UI
+        document.body.classList.remove('server-loading');
+        
+        // Animate overlay removal
+        serverOverlay.classList.add('fadeOut');
+        setTimeout(() => {
+          serverOverlay.style.display = 'none';
+          document.querySelector('.search-container').style.display = 'block';
+        }, 300);
+      } else if (status === 'starting') {
+        // Server is starting
+        serverStatus.textContent = 'Starting Needle...';
+        serverMessage.textContent = 'The semantic search engine is starting up. This may take a moment on first launch.';
+        serverOverlay.style.display = 'flex';
+        
+        // Add server loading class to body - CSS will handle hiding the UI
+        document.body.classList.add('server-loading');
+        document.querySelector('.search-container').style.display = 'none';
+        loadingIndicator.style.display = 'none';
+      } else if (status === 'failed') {
+        // Server failed to start
+        serverStatus.textContent = 'Needle Setup Failed';
+        serverMessage.textContent = 'There was an issue starting the semantic search engine. Please check the logs or try again later.';
+        serverOverlay.style.display = 'flex';
+        
+        // Add server loading class to body - CSS will handle hiding the UI
+        document.body.classList.add('server-loading');
+        document.querySelector('.search-container').style.display = 'none';
+        loadingIndicator.style.display = 'none';
+      }
+    }
 
     window.addEventListener('message', event => {
       const message = event.data;
 
-      if (message.type === 'searchResults') {
+      if (message.type === 'serverStatusUpdate') {
+        // Handle server status updates
+        updateServerUI(message.status);
+      } else if (message.type === 'searchResults') {
         loadingIndicator.style.display = 'none';
         displayResults(message.results);
       } else if (message.type === 'searchError') {
@@ -123,6 +267,9 @@
     function displayResults(results) {
       resultsContainer.innerHTML = '';
 
+      // Hide the loading indicator after results are processed
+      loadingIndicator.style.display = 'none';
+
       if (results.length === 0) {
         resultsContainer.innerHTML = '<div class="no-results">No matching results found</div>';
         return;
@@ -133,7 +280,7 @@
         resultItem.className = 'result-item';
         resultItem.onclick = () => openFile(result.filePath, result.lineStart, result.lineEnd);
 
-        const fileName = result.filePath.split('/').pop().split('\\\\').pop();
+        const fileName = result.filePath.split('/').pop().split('\\').pop();
 
         resultItem.innerHTML = `
           <div class="result-header">
@@ -168,6 +315,25 @@
         .replace(/"/g, "&quot;")
         .replace(/'/g, "&#039;");
     }
+    
+    // Check current server status on load
+    vscode.postMessage({ 
+      type: 'checkServerStatus'
+    });
+    
+    // Debug server status and class application
+    console.log('Initial body classes:', document.body.className);
+    
+    // Add a mutation observer to monitor body class changes
+    const bodyObserver = new MutationObserver((mutations) => {
+      mutations.forEach((mutation) => {
+        if (mutation.attributeName === 'class') {
+          console.log('Body class changed to:', document.body.className);
+        }
+      });
+    });
+    
+    bodyObserver.observe(document.body, { attributes: true });
   </script>
 </body>
 </html>
