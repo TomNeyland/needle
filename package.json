@@ -3,7 +3,7 @@
   "displayName": "Needle",
   "description": "Semantic search for vscode",
   "icon": "media/icon-large.png",
-  "version": "0.0.7",
+  "version": "0.0.8",
   "engines": {
     "vscode": "^1.98.0"
   },
@@ -80,7 +80,9 @@
     "check-types": "tsc --noEmit",
     "lint": "eslint src",
     "test": "vscode-test",
-    "check-build": "node scripts/check-build.js"
+    "check-build": "node scripts/check-build.js",
+    "install-hooks": "node scripts/install-hooks.js",
+    "postinstall": "npm run install-hooks"
   },
   "devDependencies": {
     "@types/mocha": "^10.0.10",
