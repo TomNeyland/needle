@@ -283,6 +283,9 @@
 
       // Hide the loading indicator after results are processed
       loadingIndicator.style.display = 'none';
+      
+      // Make the results container visible
+      resultsContainer.style.display = 'block';
 
       if (results.length === 0) {
         resultsContainer.innerHTML = '<div class="no-results">No matching results found</div>';

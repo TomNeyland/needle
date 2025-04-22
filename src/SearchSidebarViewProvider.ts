@@ -48,6 +48,10 @@ export class SearchSidebarViewProvider implements vscode.WebviewViewProvider {
     webviewView.webview.onDidReceiveMessage(async message => {
       if (message.type === 'debug') {
         logger.info('Generated HTML:', webviewView.webview.html);
+      } else if (message.type === 'checkServerStatus') {
+        // When the view is reactivated, send the current server status
+        logger.info('[Needle] Received checkServerStatus request, current status:', currentServerStatus);
+        this.updateServerStatus(currentServerStatus);
       } else if (message.type === 'search') {
         const query = message.query;
         const inclusionPattern = message.inclusionPattern || '';
