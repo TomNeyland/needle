@@ -144,6 +144,8 @@ export async function startEmbeddingServer(context: vscode.ExtensionContext): Pr
         // Update server status to Ready
         currentServerStatus = ServerStatus.Ready;
         serverStatusEmitter.fire(ServerStatus.Ready);
+        // Hide the setup notification now that server is ready
+        hideSetupNotification();
         resolve(true);
       }
     });

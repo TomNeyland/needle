@@ -123,7 +123,18 @@ export function setupFileWatcher(context: vscode.ExtensionContext): void {
     if (documents.length === 0) return;
 
     await updateFileEmbeddings(documents);
-    vscode.window.showInformationMessage(`Needle re-indexed ${documents.length} chunks from ${path.basename(doc.uri.fsPath)}`);
+    
+    // Show a status bar message instead of a notification popup
+    const reindexStatusBar = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Right, 100);
+    reindexStatusBar.text = `$(check) Needle re-indexed ${documents.length} chunks from ${path.basename(doc.uri.fsPath)}`;
+    reindexStatusBar.tooltip = `Needle updated the semantic index for ${doc.uri.fsPath}`;
+    reindexStatusBar.show();
+    
+    // Auto-dismiss after 5 seconds
+    setTimeout(() => {
+      reindexStatusBar.dispose();
+    }, 3000);
+    
     logger.info(`[Needle] Successfully updated embeddings for ${doc.uri.fsPath}`);
   }, null, context.subscriptions);
 }
