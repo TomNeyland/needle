@@ -269,27 +269,39 @@ button:hover {
 }
 
 /* Server overlay improvements */
-#serverOverlay {
+#serverOverlay, 
+#indexingMessage {
   position: fixed;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
+  width: 100%;
+  height: 100%;
   background-color: var(--vscode-editor-background);
-  z-index: 1000;
   display: flex;
   flex-direction: column;
   align-items: center;
   justify-content: center;
   padding: 20px;
   text-align: center;
+  box-sizing: border-box;
   animation: fadeIn 0.4s ease-in-out;
+}
+
+#serverOverlay {
+  z-index: 1000;
+}
+
+#indexingMessage {
+  z-index: 900;
+  display: none; /* Hidden by default */
 }
 
 .spinner {
   width: 48px;
   height: 48px;
-  margin-bottom: 24px;
+  margin: 0 auto 24px auto;
   border: 4px solid var(--vscode-activityBar-inactiveForeground);
   border-radius: 50%;
   border-top: 4px solid var(--vscode-activityBar-activeBorder);
@@ -297,35 +309,25 @@ button:hover {
   box-shadow: 0 0 20px rgba(0, 0, 0, 0.1);
 }
 
-#serverStatus {
+#serverStatus,
+#indexingStatus {
   font-size: 16px;
   margin-bottom: 12px;
   font-weight: 600;
   color: var(--vscode-editor-foreground);
+  width: 100%;
+  text-align: center;
 }
 
-#serverMessage {
+#serverMessage,
+#indexingSubtext {
   font-size: 13px;
   opacity: 0.8;
   max-width: 340px;
-  margin-bottom: 20px;
+  margin: 0 auto 20px auto;
   line-height: 1.4;
-}
-
-#indexingMessage {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  padding: 30px;
-  background-color: var(--vscode-editor-background);
-  z-index: 900;
-  animation: fadeIn 0.4s ease;
+  text-align: center;
+  width: 100%;
 }
 
 /* Add missing spinner animation keyframes */

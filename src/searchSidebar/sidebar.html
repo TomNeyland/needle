@@ -7,34 +7,11 @@
   <link href="${cssUri}" rel="stylesheet" />
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src ${webview.cspSource}; style-src ${webview.cspSource}; script-src 'nonce-${nonce}';">
   <style nonce="${nonce}">
-    /* Add server status overlay styles */
-    #serverOverlay {
-      position: fixed;
-      top: 0;
-      left: 0;
-      right: 0;
-      bottom: 0;
-      background-color: var(--vscode-editor-background);
-      z-index: 1000;
-      display: flex;
-      flex-direction: column;
-      align-items: center;
-      justify-content: center;
-      padding: 20px;
-      text-align: center;
-      animation: fadeIn 0.3s ease-in-out;
-    }
-    
     /* Make rest of UI invisible when overlay is active */
     body.server-loading .search-container,
     body.server-loading #loadingIndicator,
     body.server-loading #resultsContainer {
       display: none !important;
-    }
-    
-    @keyframes fadeIn {
-      from { opacity: 0; }
-      to { opacity: 1; }
     }
     
     @keyframes fadeOut {
@@ -45,34 +22,7 @@
     .fadeOut {
       animation: fadeOut 0.3s ease-in-out forwards;
     }
-    
-    .spinner {
-      width: 40px;
-      height: 40px;
-      margin-bottom: 16px;
-      border: 4px solid var(--vscode-activityBar-inactiveForeground);
-      border-radius: 50%;
-      border-top: 4px solid var(--vscode-activityBar-activeBorder);
-      animation: spin 2s linear infinite;
-    }
-    
-    @keyframes spin {
-      0% { transform: rotate(0deg); }
-      100% { transform: rotate(360deg); }
-    }
-    
-    #serverStatus {
-      font-size: 14px;
-      margin-bottom: 10px;
-      font-weight: bold;
-    }
-    
-    #serverMessage {
-      font-size: 12px;
-      opacity: 0.8;
-      max-width: 300px;
-      margin-bottom: 20px;
-    }
+  </style>
   </style>
 </head>
 <body>
@@ -84,12 +34,10 @@
   </div>
   
   <!-- Simple indexing message that shows during the indexing phase -->
-  <div id="indexingMessage" style="display: none;">
-    <div style="display: flex; justify-content: center;">
-      <div class="spinner"></div>
-    </div>
-    <div style="margin-top: 15px; font-weight: bold; text-align: center;">Indexing... please wait</div>
-    <div style="margin-top: 5px; font-size: 12px; opacity: 0.8; text-align: center;">Needle is analyzing your codebase</div>
+  <div id="indexingMessage">
+    <div class="spinner"></div>
+    <div id="indexingStatus">Indexing... please wait</div>
+    <div id="indexingSubtext">Needle is analyzing your codebase</div>
   </div>
   
   <div class="search-container" style="display: none;">
